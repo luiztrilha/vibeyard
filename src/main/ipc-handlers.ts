@@ -4,7 +4,8 @@ import { spawnPty, spawnShellPty, writePty, resizePty, killPty } from './pty-man
 import { loadState, saveState, PersistedState } from './store';
 import { getClaudeConfig } from './claude-cli';
 import { startWatching, cleanupSessionStatus } from './hook-status';
-import { getGitStatus } from './git-status';
+import { getGitStatus, getGitFiles } from './git-status';
+import { registerMcpHandlers } from './mcp-ipc-handlers';
 
 let hookWatcherStarted = false;
 
@@ -106,4 +107,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('app:getVersion', () => app.getVersion());
 
   ipcMain.handle('git:getStatus', (_event, projectPath: string) => getGitStatus(projectPath));
+
+  ipcMain.handle('git:getFiles', (_event, projectPath: string) => getGitFiles(projectPath));
+
+  registerMcpHandlers();
 }

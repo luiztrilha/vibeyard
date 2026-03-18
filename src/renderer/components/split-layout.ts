@@ -10,6 +10,15 @@ import {
   destroyTerminal,
   getTerminalInstance,
 } from './terminal-pane.js';
+import {
+  createInspectorPane,
+  destroyInspectorPane,
+  showInspectorPane,
+  hideAllInspectorPanes,
+  attachInspectorToContainer,
+  getInspectorInstance,
+  disconnectInspector,
+} from './mcp-inspector.js';
 
 const container = document.getElementById('terminal-container')!;
 
@@ -28,24 +37,35 @@ export function initSplitLayout(): void {
 }
 
 function onSessionAdded(data: unknown): void {
-  const { session } = data as { projectId: string; session: { id: string; claudeSessionId: string | null; args?: string } };
+  const { session } = data as { projectId: string; session: { id: string; type?: string; claudeSessionId: string | null; args?: string } };
   const project = appState.activeProject;
   if (!project) return;
 
-  // Create and spawn immediately
-  createTerminalPane(session.id, project.path, session.claudeSessionId, false, session.args || '');
-  renderLayout();
+  if (session.type === 'mcp-inspector') {
+    createInspectorPane(session.id);
+    renderLayout();
+  } else {
+    // Create and spawn immediately
+    createTerminalPane(session.id, project.path, session.claudeSessionId, false, session.args || '');
+    renderLayout();
 
-  // Spawn after layout is rendered so terminal has dimensions
-  requestAnimationFrame(() => {
-    spawnTerminal(session.id);
-    fitAllVisible();
-  });
+    // Spawn after layout is rendered so terminal has dimensions
+    requestAnimationFrame(() => {
+      spawnTerminal(session.id);
+      fitAllVisible();
+    });
+  }
 }
 
 function onSessionRemoved(data: unknown): void {
   const { sessionId } = data as { projectId: string; sessionId: string };
-  destroyTerminal(sessionId);
+  // Check if this was an MCP inspector session
+  if (getInspectorInstance(sessionId)) {
+    disconnectInspector(sessionId);
+    destroyInspectorPane(sessionId);
+  } else {
+    destroyTerminal(sessionId);
+  }
   renderLayout();
 }
 
@@ -61,14 +81,21 @@ export function renderLayout(): void {
 
   removeEmptyState();
 
-  // Ensure all sessions have terminal instances
+  // Ensure all sessions have their respective instances
   for (const session of project.sessions) {
-    if (!getTerminalInstance(session.id)) {
-      createTerminalPane(session.id, project.path, session.claudeSessionId, !!session.claudeSessionId, session.args || '');
+    if (session.type === 'mcp-inspector') {
+      if (!getInspectorInstance(session.id)) {
+        createInspectorPane(session.id);
+      }
+    } else {
+      if (!getTerminalInstance(session.id)) {
+        createTerminalPane(session.id, project.path, session.claudeSessionId, !!session.claudeSessionId, session.args || '');
+      }
     }
   }
 
   hideAllPanes();
+  hideAllInspectorPanes();
 
   if (project.layout.mode === 'split' && project.layout.splitPanes.length > 1) {
     renderSplitMode(project);
@@ -84,6 +111,13 @@ function renderTabMode(project: ProjectRecord): void {
 
   const activeId = project.activeSessionId;
   if (!activeId) return;
+
+  const activeSession = project.sessions.find(s => s.id === activeId);
+  if (activeSession?.type === 'mcp-inspector') {
+    attachInspectorToContainer(activeId, container);
+    showInspectorPane(activeId, false);
+    return;
+  }
 
   attachToContainer(activeId, container);
   showPane(activeId, false);
@@ -103,6 +137,13 @@ function renderSplitMode(project: ProjectRecord): void {
   container.className = `split-${project.layout.splitDirection}`;
 
   for (const paneId of project.layout.splitPanes) {
+    const session = project.sessions.find(s => s.id === paneId);
+    if (session?.type === 'mcp-inspector') {
+      attachInspectorToContainer(paneId, container);
+      showInspectorPane(paneId, true);
+      continue;
+    }
+
     attachToContainer(paneId, container);
     showPane(paneId, true);
 

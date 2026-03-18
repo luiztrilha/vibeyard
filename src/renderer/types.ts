@@ -3,6 +3,12 @@ export interface Agent { name: string; model: string; category: 'plugin' | 'buil
 export interface Skill { name: string; description: string; scope: 'user' | 'project' }
 export interface ClaudeConfig { mcpServers: McpServer[]; agents: Agent[]; skills: Skill[] }
 
+export interface GitFileEntry {
+  path: string;
+  status: 'added' | 'modified' | 'deleted' | 'renamed' | 'untracked' | 'conflicted';
+  area: 'staged' | 'working' | 'untracked' | 'conflicted';
+}
+
 export interface CostData {
   cost: { total_cost_usd: number; total_duration_ms: number; total_api_duration_ms: number };
   context_window: {
@@ -16,6 +22,12 @@ export interface CostData {
       cache_read_input_tokens: number;
     };
   };
+}
+
+export interface McpResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
 }
 
 export interface ClaudeIdeApi {
@@ -42,9 +54,20 @@ export interface ClaudeIdeApi {
   };
   git: {
     getStatus(path: string): Promise<unknown>;
+    getFiles(path: string): Promise<unknown>;
   };
   app: {
     getVersion(): Promise<string>;
+  };
+  mcp: {
+    connect(id: string, url: string): Promise<McpResult>;
+    disconnect(id: string): Promise<McpResult>;
+    listTools(id: string): Promise<McpResult>;
+    listResources(id: string): Promise<McpResult>;
+    listPrompts(id: string): Promise<McpResult>;
+    callTool(id: string, name: string, args: Record<string, unknown>): Promise<McpResult>;
+    readResource(id: string, uri: string): Promise<McpResult>;
+    getPrompt(id: string, name: string, args: Record<string, string>): Promise<McpResult>;
   };
   menu: {
     onNewProject(callback: () => void): () => void;

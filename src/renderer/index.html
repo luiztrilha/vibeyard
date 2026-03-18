@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; connect-src 'self' http: https:">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CCide</title>
   <link rel="stylesheet" href="styles.css">
@@ -21,6 +21,7 @@
       <div id="sidebar-content">
         <div id="project-list"></div>
         <div id="config-sections"></div>
+        <div id="git-panel"></div>
       </div>
       <div id="sidebar-footer"></div>
     </div>
@@ -32,6 +33,7 @@
         <div id="tab-actions">
           <button id="btn-help" class="icon-btn" title="Session Indicators Help (F1)" style="font-size:13px;">?</button>
           <button id="btn-toggle-terminal" class="icon-btn" title="Toggle Terminal (Ctrl+`)" style="font-size:13px;">&#x2588;</button>
+          <button id="btn-add-mcp-inspector" class="icon-btn" title="MCP Inspector" style="font-size:11px;font-weight:600;">MCP</button>
           <button id="btn-toggle-split" class="icon-btn" title="Toggle Split (Ctrl+\)">&#x2503;</button>
           <button id="btn-add-session" class="icon-btn" title="New Session (Ctrl+Shift+N)">+</button>
         </div>

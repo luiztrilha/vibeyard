@@ -12,6 +12,8 @@ import { initNotificationSound } from './notification-sound.js';
 import { initProjectTerminal, handleShellPtyData, handleShellPtyExit, isShellSessionId } from './components/project-terminal.js';
 import { startPolling as startGitPolling } from './git-status.js';
 import { initDebugPanel, logDebugEvent, setDebugVisible } from './components/debug-panel.js';
+import { initGitPanel } from './components/git-panel.js';
+import { disconnectInspector } from './components/mcp-inspector.js';
 
 async function main(): Promise<void> {
   // Wire PTY data/exit events from main process
@@ -19,7 +21,7 @@ async function main(): Promise<void> {
     logDebugEvent('ptyData', sessionId, data.slice(0, 200));
     if (isShellSessionId(sessionId)) {
       handleShellPtyData(sessionId, data);
-    } else {
+    } else if (!isMcpSession(sessionId)) {
       handlePtyData(sessionId, data);
       parseCost(sessionId, data);
     }
@@ -57,7 +59,7 @@ async function main(): Promise<void> {
     logDebugEvent('ptyExit', sessionId, { exitCode });
     if (isShellSessionId(sessionId)) {
       handleShellPtyExit(sessionId, exitCode);
-    } else {
+    } else if (!isMcpSession(sessionId)) {
       // Auto-close the session when CLI exits
       const project = appState.projects.find(p => p.sessions.some(s => s.id === sessionId));
       if (project) {
@@ -76,7 +78,16 @@ async function main(): Promise<void> {
   initNotificationSound();
   initProjectTerminal();
   initDebugPanel();
+  initGitPanel();
   startGitPolling();
+
+  function isMcpSession(sessionId: string): boolean {
+    for (const project of appState.projects) {
+      const session = project.sessions.find(s => s.id === sessionId);
+      if (session) return session.type === 'mcp-inspector';
+    }
+    return false;
+  }
 
   // Log AppState events to debug panel
   const stateEvents = [

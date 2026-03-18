@@ -1,5 +1,11 @@
 import { execFile } from 'child_process';
 
+export interface GitFileEntry {
+  path: string;
+  status: 'added' | 'modified' | 'deleted' | 'renamed' | 'untracked' | 'conflicted';
+  area: 'staged' | 'working' | 'untracked' | 'conflicted';
+}
+
 export interface GitStatus {
   isGitRepo: boolean;
   branch: string | null;
@@ -77,6 +83,68 @@ export function getGitStatus(cwd: string): Promise<GitStatus> {
           untracked,
           conflicted,
         });
+      }
+    );
+  });
+}
+
+function xyToStatus(ch: string): 'added' | 'modified' | 'deleted' | 'renamed' {
+  switch (ch) {
+    case 'A': return 'added';
+    case 'D': return 'deleted';
+    case 'R': return 'renamed';
+    default: return 'modified';
+  }
+}
+
+export function getGitFiles(cwd: string): Promise<GitFileEntry[]> {
+  return new Promise((resolve) => {
+    execFile(
+      'git',
+      ['status', '--porcelain=v2'],
+      { cwd, timeout: 5000, maxBuffer: 1024 * 1024 },
+      (err, stdout) => {
+        if (err) {
+          resolve([]);
+          return;
+        }
+
+        const entries: GitFileEntry[] = [];
+
+        for (const line of stdout.split('\n')) {
+          if (line.startsWith('1 ') || line.startsWith('2 ')) {
+            // Ordinary (1) or rename (2) entry
+            const parts = line.split('\t');
+            const fields = parts[0].split(' ');
+            const xy = fields[1];
+            // For type 1: path is last space-delimited field
+            // For type 2: path is the second tab-delimited field (new name)
+            const path = line.startsWith('2 ') && parts.length >= 2
+              ? parts[parts.length - 1]
+              : fields[fields.length - 1];
+
+            if (xy && xy.length >= 2) {
+              const x = xy[0]; // staged
+              const y = xy[1]; // working tree
+              if (x !== '.') {
+                entries.push({ path, status: xyToStatus(x), area: 'staged' });
+              }
+              if (y !== '.') {
+                entries.push({ path, status: xyToStatus(y), area: 'working' });
+              }
+            }
+          } else if (line.startsWith('u ')) {
+            // Unmerged entry
+            const parts = line.split('\t');
+            const path = parts.length >= 2 ? parts[parts.length - 1] : line.split(' ').pop()!;
+            entries.push({ path, status: 'conflicted', area: 'conflicted' });
+          } else if (line.startsWith('? ')) {
+            const path = line.slice(2);
+            entries.push({ path, status: 'untracked', area: 'untracked' });
+          }
+        }
+
+        resolve(entries);
       }
     );
   });

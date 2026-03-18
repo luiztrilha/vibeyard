@@ -4,10 +4,12 @@ import { onChange as onStatusChange, getStatus, type SessionStatus } from '../se
 import { onChange as onGitStatusChange, getGitStatus, type GitStatus } from '../git-status.js';
 import { onChange as onCostChange, getCost } from '../session-cost.js';
 import { showHelpDialog } from './help-dialog.js';
+import { scrollToGitPanel } from './git-panel.js';
 
 const tabListEl = document.getElementById('tab-list')!;
 const gitStatusEl = document.getElementById('git-status')!;
 const btnAddSession = document.getElementById('btn-add-session')!;
+const btnAddMcpInspector = document.getElementById('btn-add-mcp-inspector')!;
 const btnToggleSplit = document.getElementById('btn-toggle-split')!;
 const btnHelp = document.getElementById('btn-help')!;
 
@@ -22,8 +24,10 @@ function buildTooltip(status: SessionStatus, claudeSessionId?: string): string {
 
 export function initTabBar(): void {
   btnAddSession.addEventListener('click', promptNewSession);
+  btnAddMcpInspector.addEventListener('click', promptNewMcpInspector);
   btnToggleSplit.addEventListener('click', () => appState.toggleSplit());
   btnHelp.addEventListener('click', () => showHelpDialog());
+  gitStatusEl.addEventListener('click', () => scrollToGitPanel());
 
   appState.on('state-loaded', render);
   appState.on('project-changed', render);
@@ -231,14 +235,17 @@ function render(): void {
     const isActive = session.id === project.activeSessionId;
     if (isActive) unreadSessions.delete(session.id);
     const isUnread = !isActive && unreadSessions.has(session.id);
+    const isMcp = session.type === 'mcp-inspector';
     tab.className = 'tab-item' + (isActive ? ' active' : '') + (isUnread ? ' unread' : '');
     tab.dataset.sessionId = session.id;
-    tab.title = buildTooltip(getStatus(session.id), session.claudeSessionId);
-    const costInfo = getCost(session.id);
+    tab.title = isMcp ? `MCP Inspector` : buildTooltip(getStatus(session.id), session.claudeSessionId);
+    const costInfo = isMcp ? null : getCost(session.id);
     const costLabel = costInfo ? `$${costInfo.totalCostUsd.toFixed(2)}` : '';
+    const namePrefix = isMcp ? '<span class="tab-mcp-badge">MCP</span> ' : '';
+    const statusClass = isMcp ? 'mcp' : getStatus(session.id);
     tab.innerHTML = `
-      <span class="tab-status ${getStatus(session.id)}"></span>
-      <span class="tab-name">${esc(session.name)}</span>
+      <span class="tab-status ${statusClass}"></span>
+      <span class="tab-name">${namePrefix}${esc(session.name)}</span>
       <span class="tab-cost">${costLabel}</span>
       <span class="tab-close" title="Close session">&times;</span>
     `;
@@ -395,6 +402,22 @@ export function promptNewSession(): void {
       closeModal();
       const args = values['session-args']?.trim() || undefined;
       appState.addSession(project.id, name, args);
+    }
+  });
+}
+
+function promptNewMcpInspector(): void {
+  const project = appState.activeProject;
+  if (!project) return;
+
+  const inspectorNum = project.sessions.filter(s => s.type === 'mcp-inspector').length + 1;
+  showModal('New MCP Inspector', [
+    { label: 'Name', id: 'inspector-name', placeholder: `Inspector ${inspectorNum}`, defaultValue: `Inspector ${inspectorNum}` },
+  ], (values) => {
+    const name = values['inspector-name']?.trim();
+    if (name) {
+      closeModal();
+      appState.addMcpInspectorSession(project.id, name);
     }
   });
 }

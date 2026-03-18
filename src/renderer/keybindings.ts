@@ -6,6 +6,7 @@ import { toggleDebugPanel } from './components/debug-panel.js';
 import { showHelpDialog } from './components/help-dialog.js';
 import { getFocusedSessionId } from './components/terminal-pane.js';
 import { showSearchBar } from './components/search-bar.js';
+import { toggleGitPanel } from './components/git-panel.js';
 
 export function initKeybindings(): void {
   // Menu-based shortcuts (registered via Electron menu accelerators)
@@ -37,6 +38,11 @@ export function initKeybindings(): void {
     if (e.key === 'F1') {
       e.preventDefault();
       showHelpDialog();
+    }
+    // Ctrl+Shift+G / Cmd+Shift+G to toggle git panel
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'G') {
+      e.preventDefault();
+      toggleGitPanel();
     }
   });
 }

@@ -9,8 +9,10 @@ declare global {
 export interface SessionRecord {
   id: string;
   name: string;
+  type?: 'claude' | 'mcp-inspector';
   args?: string;
   claudeSessionId: string | null;
+  mcpServerUrl?: string;
   createdAt: string;
 }
 
@@ -181,6 +183,25 @@ class AppState {
       id: crypto.randomUUID(),
       name,
       ...(args ? { args } : {}),
+      claudeSessionId: null,
+      createdAt: new Date().toISOString(),
+    };
+    project.sessions.push(session);
+    project.activeSessionId = session.id;
+    this.persist();
+    this.emit('session-added', { projectId, session });
+    this.emit('session-changed');
+    return session;
+  }
+
+  addMcpInspectorSession(projectId: string, name: string): SessionRecord | undefined {
+    const project = this.state.projects.find((p) => p.id === projectId);
+    if (!project) return undefined;
+
+    const session: SessionRecord = {
+      id: crypto.randomUUID(),
+      name,
+      type: 'mcp-inspector',
       claudeSessionId: null,
       createdAt: new Date().toISOString(),
     };
