@@ -6,12 +6,16 @@ Create a git commit for the current staged (or unstaged) changes using a structu
    - Run `git status` (never use `-uall`) to see untracked and modified files.
    - Run `git diff --staged` to see what is already staged.
 
-2. **Stage files if nothing is staged:**
+2. **Run tests:**
+   - Run `npm test` and verify all tests pass.
+   - If any test fails, stop and report the failure — do NOT proceed with the commit.
+
+3. **Stage files if nothing is staged:**
    - If there are no staged changes but there are modified/untracked files, stage the relevant ones.
    - NEVER stage files that likely contain secrets (`.env`, `credentials.json`, `.key` files, etc.).
    - Prefer staging specific files by name over `git add -A`.
 
-3. **Analyze the changes and choose a prefix:**
+4. **Analyze the changes and choose a prefix:**
    Pick the most appropriate prefix based on the nature of the changes:
 
    | Prefix       | When to use                                      | Release Notes Section |
@@ -31,15 +35,15 @@ Create a git commit for the current staged (or unstaged) changes using a structu
    | `refactor`   | Code restructuring without behavior change       | Changes               |
    | `bump`       | Version bump                                     | Changes               |
 
-4. **Format the commit message:**
+5. **Format the commit message:**
    - Format: `<prefix> <concise lowercase description>`
    - Examples: `add dark mode support`, `fix session resume on restart`, `refactor PTY lifecycle management`
    - Keep it concise — one line, no period at the end
    - Focus on the "what" and "why", not the "how"
 
-5. **If `$ARGUMENTS` is provided**, use it as guidance or context for the commit message. It may be a description of what was done, a hint about the prefix to use, or a full message to refine.
+6. **If `$ARGUMENTS` is provided**, use it as guidance or context for the commit message. It may be a description of what was done, a hint about the prefix to use, or a full message to refine.
 
-6. **Create the commit** using a HEREDOC for the message:
+7. **Create the commit** using a HEREDOC for the message:
    ```
    git commit -m "$(cat <<'EOF'
    <prefix> <description>
@@ -49,8 +53,8 @@ Create a git commit for the current staged (or unstaged) changes using a structu
    )"
    ```
 
-7. **Verify** by running `git status` after the commit to confirm success.
+8. **Verify** by running `git status` after the commit to confirm success.
 
-8. Do NOT push to the remote unless explicitly asked.
+9. Do NOT push to the remote unless explicitly asked.
 
 $ARGUMENTS
