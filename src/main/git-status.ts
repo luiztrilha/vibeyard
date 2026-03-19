@@ -1,6 +1,13 @@
 import { execFile } from 'child_process';
 import * as fs from 'fs';
 
+export interface GitWorktree {
+  path: string;
+  head: string;
+  branch: string | null;
+  isBare: boolean;
+}
+
 export interface GitFileEntry {
   path: string;
   status: 'added' | 'modified' | 'deleted' | 'renamed' | 'untracked' | 'conflicted';
@@ -182,6 +189,56 @@ export function getGitFiles(cwd: string): Promise<GitFileEntry[]> {
         }
 
         resolve(entries);
+      }
+    );
+  });
+}
+
+export function getGitWorktrees(cwd: string): Promise<GitWorktree[]> {
+  return new Promise((resolve) => {
+    execFile(
+      'git',
+      ['worktree', 'list', '--porcelain'],
+      { cwd, timeout: 5000 },
+      (err, stdout) => {
+        if (err) {
+          resolve([]);
+          return;
+        }
+
+        const worktrees: GitWorktree[] = [];
+        const blocks = stdout.split('\n\n');
+
+        for (const block of blocks) {
+          const lines = block.trim().split('\n');
+          if (lines.length === 0 || !lines[0]) continue;
+
+          let path = '';
+          let head = '';
+          let branch: string | null = null;
+          let isBare = false;
+
+          for (const line of lines) {
+            if (line.startsWith('worktree ')) {
+              path = line.slice('worktree '.length);
+            } else if (line.startsWith('HEAD ')) {
+              head = line.slice('HEAD '.length);
+            } else if (line.startsWith('branch ')) {
+              const ref = line.slice('branch '.length);
+              branch = ref.startsWith('refs/heads/') ? ref.slice('refs/heads/'.length) : ref;
+            } else if (line === 'bare') {
+              isBare = true;
+            } else if (line === 'detached') {
+              branch = null;
+            }
+          }
+
+          if (path) {
+            worktrees.push({ path, head, branch, isBare });
+          }
+        }
+
+        resolve(worktrees);
       }
     );
   });

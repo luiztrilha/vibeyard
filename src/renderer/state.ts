@@ -15,6 +15,7 @@ export interface SessionRecord {
   mcpServerUrl?: string;
   diffFilePath?: string;
   diffArea?: string;
+  worktreePath?: string;
   fileReaderPath?: string;
   createdAt: string;
 }
@@ -198,13 +199,13 @@ class AppState {
     return session;
   }
 
-  addDiffViewerSession(projectId: string, filePath: string, area: string): SessionRecord | undefined {
+  addDiffViewerSession(projectId: string, filePath: string, area: string, worktreePath?: string): SessionRecord | undefined {
     const project = this.state.projects.find((p) => p.id === projectId);
     if (!project) return undefined;
 
-    // If a diff tab for this file+area already exists, just switch to it
+    // If a diff tab for this file+area+worktree already exists, just switch to it
     const existing = project.sessions.find(
-      (s) => s.type === 'diff-viewer' && s.diffFilePath === filePath && s.diffArea === area
+      (s) => s.type === 'diff-viewer' && s.diffFilePath === filePath && s.diffArea === area && s.worktreePath === worktreePath
     );
     if (existing) {
       project.activeSessionId = existing.id;
@@ -220,6 +221,7 @@ class AppState {
       type: 'diff-viewer',
       diffFilePath: filePath,
       diffArea: area,
+      ...(worktreePath ? { worktreePath } : {}),
       claudeSessionId: null,
       createdAt: new Date().toISOString(),
     };

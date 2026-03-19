@@ -12,7 +12,7 @@ vi.mock('fs', () => ({
 
 import { execFile } from 'child_process';
 import { readFileSync } from 'fs';
-import { getGitStatus, getGitFiles, getGitDiff } from './git-status';
+import { getGitStatus, getGitFiles, getGitDiff, getGitWorktrees } from './git-status';
 
 const mockExecFile = vi.mocked(execFile);
 const mockReadFileSync = vi.mocked(readFileSync);
@@ -210,5 +210,104 @@ describe('getGitDiff', () => {
     });
     const diff = await getGitDiff('/test', 'file.ts', 'working');
     expect(diff).toBe('(no diff available)');
+  });
+});
+
+describe('getGitWorktrees', () => {
+  it('parses porcelain output with main and linked worktree', async () => {
+    const output = [
+      'worktree /repo',
+      'HEAD abc1234567890abcdef1234567890abcdef123456',
+      'branch refs/heads/main',
+      '',
+      'worktree /repo-feature',
+      'HEAD def4567890abcdef1234567890abcdef1234567890',
+      'branch refs/heads/feature-branch',
+      '',
+    ].join('\n');
+
+    simulateExecFile(null, output);
+    const worktrees = await getGitWorktrees('/repo');
+
+    expect(worktrees).toHaveLength(2);
+    expect(worktrees[0]).toEqual({
+      path: '/repo',
+      head: 'abc1234567890abcdef1234567890abcdef123456',
+      branch: 'main',
+      isBare: false,
+    });
+    expect(worktrees[1]).toEqual({
+      path: '/repo-feature',
+      head: 'def4567890abcdef1234567890abcdef1234567890',
+      branch: 'feature-branch',
+      isBare: false,
+    });
+  });
+
+  it('handles detached HEAD worktree', async () => {
+    const output = [
+      'worktree /repo',
+      'HEAD abc123',
+      'branch refs/heads/main',
+      '',
+      'worktree /repo-detached',
+      'HEAD def456',
+      'detached',
+      '',
+    ].join('\n');
+
+    simulateExecFile(null, output);
+    const worktrees = await getGitWorktrees('/repo');
+
+    expect(worktrees).toHaveLength(2);
+    expect(worktrees[1]).toEqual({
+      path: '/repo-detached',
+      head: 'def456',
+      branch: null,
+      isBare: false,
+    });
+  });
+
+  it('handles bare worktree', async () => {
+    const output = [
+      'worktree /repo.git',
+      'HEAD abc123',
+      'bare',
+      '',
+      'worktree /repo-wt',
+      'HEAD def456',
+      'branch refs/heads/main',
+      '',
+    ].join('\n');
+
+    simulateExecFile(null, output);
+    const worktrees = await getGitWorktrees('/repo.git');
+
+    expect(worktrees).toHaveLength(2);
+    expect(worktrees[0].isBare).toBe(true);
+    expect(worktrees[0].branch).toBeNull();
+    expect(worktrees[1].isBare).toBe(false);
+    expect(worktrees[1].branch).toBe('main');
+  });
+
+  it('returns empty array on error', async () => {
+    simulateExecFile(new Error('not a git repo') as ExecFileException, '');
+    const worktrees = await getGitWorktrees('/test');
+    expect(worktrees).toEqual([]);
+  });
+
+  it('handles single worktree (no linked)', async () => {
+    const output = [
+      'worktree /repo',
+      'HEAD abc123',
+      'branch refs/heads/main',
+      '',
+    ].join('\n');
+
+    simulateExecFile(null, output);
+    const worktrees = await getGitWorktrees('/repo');
+
+    expect(worktrees).toHaveLength(1);
+    expect(worktrees[0].path).toBe('/repo');
   });
 });

@@ -1,8 +1,8 @@
 import { appState } from '../state.js';
-import { onChange as onGitStatusChange, getGitStatus } from '../git-status.js';
+import { onChange as onGitStatusChange, getGitStatus, getActiveGitPath, getWorktrees, setActiveWorktree, onWorktreeChange } from '../git-status.js';
 import { onChange as onStatusChange } from '../session-activity.js';
 import { showFileViewer } from './file-viewer.js';
-import type { GitFileEntry } from '../types.js';
+import type { GitFileEntry, GitWorktree } from '../types.js';
 
 const MAX_FILES = 100;
 
@@ -33,6 +33,51 @@ function groupLabel(area: string): string {
   }
 }
 
+function shortPath(fullPath: string): string {
+  const parts = fullPath.split('/');
+  return parts.length > 2 ? '.../' + parts.slice(-2).join('/') : fullPath;
+}
+
+function renderWorktreeSelector(container: HTMLElement, project: { id: string; path: string }): void {
+  const worktrees = getWorktrees(project.id);
+  // Remove existing selector
+  const existing = container.querySelector('.git-worktree-selector');
+  if (existing) existing.remove();
+
+  if (!worktrees || worktrees.length <= 1) return;
+
+  const activeGitPath = getActiveGitPath(project.id);
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'git-worktree-selector';
+
+  const select = document.createElement('select');
+  select.className = 'git-worktree-select';
+
+  for (const wt of worktrees) {
+    if (wt.isBare) continue;
+    const option = document.createElement('option');
+    option.value = wt.path;
+    const label = wt.branch || `detached (${wt.head.slice(0, 7)})`;
+    const pathHint = wt.path === project.path ? '' : ` — ${shortPath(wt.path)}`;
+    option.textContent = label + pathHint;
+    option.selected = wt.path === activeGitPath;
+    select.appendChild(option);
+  }
+
+  select.addEventListener('change', () => {
+    setActiveWorktree(project.id, select.value);
+  });
+
+  wrapper.appendChild(select);
+
+  // Insert after header
+  const header = container.querySelector('.config-section-header');
+  if (header && header.nextSibling) {
+    container.querySelector('.config-section')!.insertBefore(wrapper, header.nextSibling);
+  }
+}
+
 async function refresh(): Promise<void> {
   const container = document.getElementById('git-panel');
   if (!container) return;
@@ -55,13 +100,26 @@ async function refresh(): Promise<void> {
     return;
   }
 
+  const activeGitPath = getActiveGitPath(project.id);
+  const worktrees = getWorktrees(project.id);
+  const hasMultipleWorktrees = worktrees && worktrees.length > 1;
+
+  // Find active worktree branch for header
+  let headerSuffix = '';
+  if (hasMultipleWorktrees) {
+    const activeWt = worktrees!.find(w => w.path === activeGitPath);
+    if (activeWt?.branch) {
+      headerSuffix = ` · ${esc(activeWt.branch)}`;
+    }
+  }
+
   // Build section shell
   const section = document.createElement('div');
   section.className = 'config-section';
 
   const header = document.createElement('div');
   header.className = 'config-section-header';
-  header.innerHTML = `<span class="config-section-toggle ${collapsed ? 'collapsed' : ''}">&#x25BC;</span>Git Changes<span class="config-section-count">${total}</span>`;
+  header.innerHTML = `<span class="config-section-toggle ${collapsed ? 'collapsed' : ''}">&#x25BC;</span>Git Changes${headerSuffix}<span class="config-section-count">${total}</span>`;
 
   const body = document.createElement('div');
   body.className = `config-section-body${collapsed ? ' hidden' : ''}`;
@@ -72,7 +130,7 @@ async function refresh(): Promise<void> {
     toggle.classList.toggle('collapsed');
     body.classList.toggle('hidden');
     // Fetch files on expand
-    if (!collapsed) loadFiles(body, project.path);
+    if (!collapsed) loadFiles(body, activeGitPath);
   });
 
   section.appendChild(header);
@@ -81,17 +139,22 @@ async function refresh(): Promise<void> {
   container.innerHTML = '';
   container.appendChild(section);
 
+  // Add worktree selector if multiple worktrees
+  if (hasMultipleWorktrees) {
+    renderWorktreeSelector(container, project);
+  }
+
   if (!collapsed) {
-    loadFiles(body, project.path);
+    loadFiles(body, activeGitPath);
   }
 }
 
-async function loadFiles(body: HTMLElement, projectPath: string): Promise<void> {
+async function loadFiles(body: HTMLElement, gitPath: string): Promise<void> {
   body.innerHTML = '<div class="config-loading">Loading...</div>';
 
   let files: GitFileEntry[];
   try {
-    files = await window.claudeIde.git.getFiles(projectPath) as GitFileEntry[];
+    files = await window.claudeIde.git.getFiles(gitPath) as GitFileEntry[];
   } catch {
     body.innerHTML = '';
     return;
@@ -123,7 +186,7 @@ async function loadFiles(body: HTMLElement, projectPath: string): Promise<void> 
       const item = document.createElement('div');
       item.className = 'config-item config-item-clickable';
       item.innerHTML = `${statusBadge(entry)}<span class="config-item-detail" title="${esc(entry.path)}">${esc(entry.path)}</span>`;
-      item.addEventListener('click', () => showFileViewer(entry.path, entry.area));
+      item.addEventListener('click', () => showFileViewer(entry.path, entry.area, gitPath));
       body.appendChild(item);
       rendered++;
     }
@@ -152,7 +215,7 @@ export function scrollToGitPanel(): void {
     if (body) {
       body.classList.remove('hidden');
       const project = appState.activeProject;
-      if (project) loadFiles(body as HTMLElement, project.path);
+      if (project) loadFiles(body as HTMLElement, getActiveGitPath(project.id));
     }
   }
 }
@@ -170,7 +233,7 @@ export function toggleGitPanel(): void {
     body.classList.toggle('hidden');
     if (!collapsed) {
       const project = appState.activeProject;
-      if (project) loadFiles(body as HTMLElement, project.path);
+      if (project) loadFiles(body as HTMLElement, getActiveGitPath(project.id));
     }
   }
 }
@@ -195,4 +258,10 @@ export function initGitPanel(): void {
       refresh();
     }
   });
+
+  // Refresh when worktree list or active worktree changes
+  onWorktreeChange(() => refresh());
+
+  // Auto-switch on session change
+  appState.on('session-changed', () => refresh());
 }

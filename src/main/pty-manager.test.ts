@@ -1,10 +1,11 @@
 import { vi } from 'vitest';
 
-const { mockSpawn, mockWrite, mockResize, mockKill } = vi.hoisted(() => ({
+const { mockSpawn, mockWrite, mockResize, mockKill, mockExecFile } = vi.hoisted(() => ({
   mockSpawn: vi.fn(),
   mockWrite: vi.fn(),
   mockResize: vi.fn(),
   mockKill: vi.fn(),
+  mockExecFile: vi.fn(),
 }));
 
 vi.mock('node-pty', () => ({
@@ -14,6 +15,7 @@ vi.mock('node-pty', () => ({
 
 vi.mock('child_process', () => ({
   execSync: vi.fn(() => { throw new Error('not found'); }),
+  execFile: mockExecFile,
 }));
 
 vi.mock('os', () => ({
@@ -25,7 +27,7 @@ vi.mock('fs', () => ({
 }));
 
 import * as fs from 'fs';
-import { spawnPty, writePty, resizePty, killPty } from './pty-manager';
+import { spawnPty, writePty, resizePty, killPty, getPtyCwd } from './pty-manager';
 
 const mockExistsSync = vi.mocked(fs.existsSync);
 
@@ -211,5 +213,62 @@ describe('killPty', () => {
     mockWrite.mockClear();
     writePty('s1', 'input');
     expect(mockWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('getPtyCwd', () => {
+  it('returns null for unknown session', async () => {
+    const result = await getPtyCwd('unknown');
+    expect(result).toBeNull();
+  });
+
+  it('returns cwd of deepest child process', async () => {
+    const proc = createMockPtyProcess();
+    (proc as unknown as { pid: number }).pid = 1000;
+    mockSpawn.mockReturnValue(proc);
+    spawnPty('s1', '/project', null, false, '', vi.fn(), vi.fn());
+
+    // pgrep for pid 1000 returns child 2000
+    mockExecFile.mockImplementationOnce((_cmd: string, args: string[], _opts: unknown, callback: (err: Error | null, stdout: string) => void) => {
+      if (args[1] === '1000') callback(null, '2000\n');
+      return undefined as never;
+    });
+
+    // pgrep for pid 2000 returns no children (error)
+    mockExecFile.mockImplementationOnce((_cmd: string, _args: string[], _opts: unknown, callback: (err: Error | null, stdout: string) => void) => {
+      callback(new Error('no children'), '');
+      return undefined as never;
+    });
+
+    // lsof for pid 2000
+    mockExecFile.mockImplementationOnce((_cmd: string, _args: string[], _opts: unknown, callback: (err: Error | null, stdout: string) => void) => {
+      callback(null, 'p2000\nfcwd\nn/some/worktree/path\n');
+      return undefined as never;
+    });
+
+    const result = await getPtyCwd('s1');
+    expect(result).toBe('/some/worktree/path');
+  });
+
+  it('returns null when lsof fails', async () => {
+    const proc = createMockPtyProcess();
+    (proc as unknown as { pid: number }).pid = 1000;
+    mockSpawn.mockReturnValue(proc);
+    spawnPty('s2', '/project', null, false, '', vi.fn(), vi.fn());
+
+    // pgrep returns no children
+    mockExecFile.mockImplementationOnce((_cmd: string, _args: string[], _opts: unknown, callback: (err: Error | null, stdout: string) => void) => {
+      callback(new Error('no children'), '');
+      return undefined as never;
+    });
+
+    // lsof fails
+    mockExecFile.mockImplementationOnce((_cmd: string, _args: string[], _opts: unknown, callback: (err: Error | null, stdout: string) => void) => {
+      callback(new Error('lsof failed'), '');
+      return undefined as never;
+    });
+
+    const result = await getPtyCwd('s2');
+    expect(result).toBeNull();
   });
 });

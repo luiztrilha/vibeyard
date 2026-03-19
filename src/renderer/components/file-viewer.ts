@@ -4,6 +4,7 @@ interface FileViewerInstance {
   element: HTMLElement;
   filePath: string;
   area: string;
+  worktreePath?: string;
   loaded: boolean;
 }
 
@@ -54,7 +55,7 @@ async function loadDiff(instance: FileViewerInstance): Promise<void> {
   body.appendChild(loading);
 
   try {
-    const diff = await window.claudeIde.git.getDiff(project.path, instance.filePath, instance.area);
+    const diff = await window.claudeIde.git.getDiff(instance.worktreePath ?? project.path, instance.filePath, instance.area);
     body.innerHTML = '';
     body.appendChild(parseDiffLines(diff));
     instance.loaded = true;
@@ -63,7 +64,7 @@ async function loadDiff(instance: FileViewerInstance): Promise<void> {
   }
 }
 
-export function createFileViewerPane(sessionId: string, filePath: string, area: string): void {
+export function createFileViewerPane(sessionId: string, filePath: string, area: string, worktreePath?: string): void {
   if (instances.has(sessionId)) return;
 
   const el = document.createElement('div');
@@ -91,7 +92,7 @@ export function createFileViewerPane(sessionId: string, filePath: string, area: 
   body.className = 'file-viewer-body';
   el.appendChild(body);
 
-  const instance: FileViewerInstance = { element: el, filePath, area, loaded: false };
+  const instance: FileViewerInstance = { element: el, filePath, area, worktreePath, loaded: false };
   instances.set(sessionId, instance);
 }
 
@@ -130,10 +131,10 @@ export function getFileViewerInstance(sessionId: string): FileViewerInstance | u
 }
 
 /** Called from git-panel when a file row is clicked */
-export function showFileViewer(filePath: string, area: string): void {
+export function showFileViewer(filePath: string, area: string, worktreePath?: string): void {
   const project = appState.activeProject;
   if (!project) return;
-  appState.addDiffViewerSession(project.id, filePath, area);
+  appState.addDiffViewerSession(project.id, filePath, area, worktreePath);
 }
 
 /** Reload the diff content for a given session (e.g. after git changes) */

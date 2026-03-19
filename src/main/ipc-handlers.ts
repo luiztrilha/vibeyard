@@ -2,11 +2,11 @@ import { ipcMain, BrowserWindow, app, dialog } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { spawnPty, spawnShellPty, writePty, resizePty, killPty, isSilencedExit } from './pty-manager';
+import { spawnPty, spawnShellPty, writePty, resizePty, killPty, isSilencedExit, getPtyCwd } from './pty-manager';
 import { loadState, saveState, PersistedState } from './store';
 import { getClaudeConfig } from './claude-cli';
 import { startWatching, cleanupSessionStatus } from './hook-status';
-import { getGitStatus, getGitFiles, getGitDiff } from './git-status';
+import { getGitStatus, getGitFiles, getGitDiff, getGitWorktrees } from './git-status';
 import { registerMcpHandlers } from './mcp-ipc-handlers';
 import { checkForUpdates, quitAndInstall } from './auto-updater';
 
@@ -119,6 +119,10 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('git:getFiles', (_event, projectPath: string) => getGitFiles(projectPath));
 
   ipcMain.handle('git:getDiff', (_event, projectPath: string, filePath: string, area: string) => getGitDiff(projectPath, filePath, area));
+
+  ipcMain.handle('git:getWorktrees', (_event, projectPath: string) => getGitWorktrees(projectPath));
+
+  ipcMain.handle('pty:getCwd', (_event, sessionId: string) => getPtyCwd(sessionId));
 
   ipcMain.handle('fs:listFiles', (_event, cwd: string, query: string) => {
     try {

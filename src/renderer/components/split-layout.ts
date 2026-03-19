@@ -53,7 +53,7 @@ export function initSplitLayout(): void {
 }
 
 function onSessionAdded(data: unknown): void {
-  const { session } = data as { projectId: string; session: { id: string; type?: string; claudeSessionId: string | null; args?: string; diffFilePath?: string; diffArea?: string; fileReaderPath?: string } };
+  const { session } = data as { projectId: string; session: { id: string; type?: string; claudeSessionId: string | null; args?: string; diffFilePath?: string; diffArea?: string; worktreePath?: string; fileReaderPath?: string } };
   const project = appState.activeProject;
   if (!project) return;
 
@@ -61,7 +61,7 @@ function onSessionAdded(data: unknown): void {
     createFileReaderPane(session.id, session.fileReaderPath || '');
     renderLayout();
   } else if (session.type === 'diff-viewer') {
-    createFileViewerPane(session.id, session.diffFilePath || '', session.diffArea || '');
+    createFileViewerPane(session.id, session.diffFilePath || '', session.diffArea || '', session.worktreePath);
     renderLayout();
   } else if (session.type === 'mcp-inspector') {
     createInspectorPane(session.id);
@@ -114,7 +114,7 @@ export function renderLayout(): void {
       }
     } else if (session.type === 'diff-viewer') {
       if (!getFileViewerInstance(session.id)) {
-        createFileViewerPane(session.id, session.diffFilePath || '', session.diffArea || '');
+        createFileViewerPane(session.id, session.diffFilePath || '', session.diffArea || '', session.worktreePath);
       }
     } else if (session.type === 'mcp-inspector') {
       if (!getInspectorInstance(session.id)) {

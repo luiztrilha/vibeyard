@@ -1,5 +1,5 @@
 import * as pty from 'node-pty';
-import { execSync } from 'child_process';
+import { execSync, execFile } from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -13,12 +13,34 @@ const ptys = new Map<string, PtyInstance>();
 const silencedExits = new Set<string>();
 
 /**
- * Get a full PATH that includes common binary directories.
- * When Electron is launched from macOS (e.g. via DMG), process.env.PATH
- * is minimal and won't include dirs like /usr/local/bin or /opt/homebrew/bin.
+ * Get the full PATH by sourcing the user's login shell.
+ * When Electron is launched from macOS Finder/Dock, process.env.PATH
+ * is minimal (/usr/bin:/bin:/usr/sbin:/sbin) and misses nvm, homebrew, etc.
+ * We resolve this once by running a login shell to get the real PATH.
  */
+let cachedFullPath: string | null = null;
+
 function getFullPath(): string {
+  if (cachedFullPath) return cachedFullPath;
+
+  const shell = process.env.SHELL || '/bin/zsh';
   const currentPath = process.env.PATH || '';
+
+  // Try to get the real PATH from a login shell
+  try {
+    const shellPath = execSync(`${shell} -ilc 'echo __PATH__=$PATH'`, {
+      encoding: 'utf-8',
+      timeout: 5000,
+      env: { ...process.env, HOME: os.homedir() },
+    });
+    const match = shellPath.match(/__PATH__=(.+)/);
+    if (match && match[1]) {
+      cachedFullPath = match[1].trim();
+      return cachedFullPath;
+    }
+  } catch {}
+
+  // Fallback: merge current PATH with common directories
   const home = os.homedir();
   const extraDirs = [
     '/usr/local/bin',
@@ -33,7 +55,8 @@ function getFullPath(): string {
   for (const dir of extraDirs) {
     pathSet.add(dir);
   }
-  return Array.from(pathSet).join(':');
+  cachedFullPath = Array.from(pathSet).join(':');
+  return cachedFullPath;
 }
 
 /**
@@ -193,4 +216,63 @@ export function killAllPtys(): void {
   for (const [id] of ptys) {
     killPty(id);
   }
+}
+
+/**
+ * Get the current working directory of a PTY's deepest child process.
+ * Uses pgrep to find the deepest child, then lsof to read its cwd.
+ */
+export function getPtyCwd(sessionId: string): Promise<string | null> {
+  const instance = ptys.get(sessionId);
+  if (!instance) return Promise.resolve(null);
+
+  const pid = instance.process.pid;
+
+  return new Promise((resolve) => {
+    // Find deepest child process recursively
+    findDeepestChild(pid, (deepestPid) => {
+      // Read cwd of the deepest process via lsof
+      execFile(
+        'lsof',
+        ['-a', '-d', 'cwd', '-Fn', '-p', String(deepestPid)],
+        { timeout: 3000 },
+        (err, stdout) => {
+          if (err) {
+            resolve(null);
+            return;
+          }
+          // Parse lsof output: lines starting with 'n' contain the path
+          for (const line of stdout.split('\n')) {
+            if (line.startsWith('n') && line.length > 1) {
+              resolve(line.slice(1));
+              return;
+            }
+          }
+          resolve(null);
+        }
+      );
+    });
+  });
+}
+
+function findDeepestChild(pid: number, callback: (deepestPid: number) => void): void {
+  execFile(
+    'pgrep',
+    ['-P', String(pid)],
+    { timeout: 3000 },
+    (err, stdout) => {
+      if (err || !stdout.trim()) {
+        // No children — this is the deepest
+        callback(pid);
+        return;
+      }
+      const children = stdout.trim().split('\n').map(s => parseInt(s, 10)).filter(n => !isNaN(n));
+      if (children.length === 0) {
+        callback(pid);
+        return;
+      }
+      // Recurse into the last child (most recent)
+      findDeepestChild(children[children.length - 1], callback);
+    }
+  );
 }

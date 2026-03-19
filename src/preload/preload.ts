@@ -22,6 +22,7 @@ export interface ClaudeIdeApi {
     write(sessionId: string, data: string): void;
     resize(sessionId: string, cols: number, rows: number): void;
     kill(sessionId: string): Promise<void>;
+    getCwd(sessionId: string): Promise<string | null>;
     onData(callback: (sessionId: string, data: string) => void): () => void;
     onExit(callback: (sessionId: string, exitCode: number, signal?: number) => void): () => void;
   };
@@ -47,6 +48,7 @@ export interface ClaudeIdeApi {
     getStatus(path: string): Promise<unknown>;
     getFiles(path: string): Promise<unknown>;
     getDiff(path: string, file: string, area: string): Promise<string>;
+    getWorktrees(path: string): Promise<unknown>;
   };
   update: {
     checkNow(): Promise<void>;
@@ -99,6 +101,8 @@ const api: ClaudeIdeApi = {
       ipcRenderer.send('pty:resize', sessionId, cols, rows),
     kill: (sessionId) =>
       ipcRenderer.invoke('pty:kill', sessionId),
+    getCwd: (sessionId: string) =>
+      ipcRenderer.invoke('pty:getCwd', sessionId),
     onData: (callback) =>
       onChannel('pty:data', (sessionId, data) => callback(sessionId as string, data as string)),
     onExit: (callback) =>
@@ -133,6 +137,7 @@ const api: ClaudeIdeApi = {
     getStatus: (path) => ipcRenderer.invoke('git:getStatus', path),
     getFiles: (path) => ipcRenderer.invoke('git:getFiles', path),
     getDiff: (path: string, file: string, area: string) => ipcRenderer.invoke('git:getDiff', path, file, area),
+    getWorktrees: (path: string) => ipcRenderer.invoke('git:getWorktrees', path),
   },
   update: {
     checkNow: () => ipcRenderer.invoke('update:checkNow'),

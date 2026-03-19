@@ -4,6 +4,13 @@ export interface Skill { name: string; description: string; scope: 'user' | 'pro
 export interface Command { name: string; description: string; scope: 'user' | 'project'; filePath: string }
 export interface ClaudeConfig { mcpServers: McpServer[]; agents: Agent[]; skills: Skill[]; commands: Command[] }
 
+export interface GitWorktree {
+  path: string;
+  head: string;
+  branch: string | null;
+  isBare: boolean;
+}
+
 export interface GitFileEntry {
   path: string;
   status: 'added' | 'modified' | 'deleted' | 'renamed' | 'untracked' | 'conflicted';
@@ -38,6 +45,7 @@ export interface ClaudeIdeApi {
     write(sessionId: string, data: string): void;
     resize(sessionId: string, cols: number, rows: number): void;
     kill(sessionId: string): Promise<void>;
+    getCwd(sessionId: string): Promise<string | null>;
     onData(callback: (sessionId: string, data: string) => void): () => void;
     onExit(callback: (sessionId: string, exitCode: number, signal?: number) => void): () => void;
   };
@@ -63,6 +71,7 @@ export interface ClaudeIdeApi {
     getStatus(path: string): Promise<unknown>;
     getFiles(path: string): Promise<unknown>;
     getDiff(path: string, file: string, area: string): Promise<string>;
+    getWorktrees(path: string): Promise<GitWorktree[]>;
   };
   update: {
     checkNow(): Promise<void>;

@@ -1635,6 +1635,27 @@ select.mcp-form-input {
   border-top: none;
 }
 
+.git-worktree-selector {
+  padding: 4px 12px 4px;
+}
+
+.git-worktree-select {
+  width: 100%;
+  padding: 3px 6px;
+  font-size: 11px;
+  background: var(--bg-tertiary, #2a2a2a);
+  color: var(--text-primary);
+  border: 1px solid var(--border, #3a3a3a);
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.git-worktree-select:focus {
+  border-color: var(--accent);
+}
+
 .git-group-header {
   padding: 6px 12px 2px;
   font-size: 11px;
