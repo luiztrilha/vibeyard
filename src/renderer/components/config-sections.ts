@@ -11,7 +11,7 @@ function renderSection(id: string, title: string, items: HTMLElement[], count: n
   const section = document.createElement('div');
   section.className = 'config-section';
 
-  const isCollapsed = collapsed[id] ?? false;
+  const isCollapsed = collapsed[id] ?? true;
 
   const header = document.createElement('div');
   header.className = 'config-section-header';
