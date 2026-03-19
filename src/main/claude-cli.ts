@@ -197,7 +197,7 @@ function isIdeHook(h: HookHandler): boolean {
 
 /**
  * Install Claude Code hooks in ~/.claude/settings.json so that
- * UserPromptSubmit → working, Stop → waiting, Notification → waiting.
+ * UserPromptSubmit → working, Stop/StopFailure → waiting, Notification → waiting.
  */
 export function installHooks(): void {
   const settingsPath = path.join(homedir(), '.claude', 'settings.json');
@@ -238,6 +238,7 @@ export function installHooks(): void {
     PostToolUse: 'working',
     PostToolUseFailure: 'working',
     Stop: 'waiting',
+    StopFailure: 'waiting',
     TaskCompleted: 'completed',
     PermissionRequest: 'permission',
   };
