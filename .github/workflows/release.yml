@@ -1,12 +1,97 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version bump type (patch, minor, major) or explicit version (e.g. 0.3.0)'
+        required: true
+        default: 'patch'
+        type: string
 
 jobs:
-  release:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.get-tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run release steps via Claude Code
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_KEY }}
+        run: |
+          claude -p \
+            --allowedTools 'Bash(git:*)' 'Bash(npm:*)' Edit Write Read \
+            "You are performing a release for this project. The version input is: ${{ inputs.version }}
+
+          Follow these steps exactly:
+
+          1. Run 'npm test' and ensure all tests pass. If any test fails, exit with an error.
+
+          2. Determine the new version:
+             - If the input is 'major', 'minor', or 'patch', calculate the new version by bumping the corresponding part of the current version in package.json.
+             - If the input is an explicit version (e.g. '0.3.0' or 'v0.3.0'), use that. Strip any leading 'v'.
+             - Default to 'patch' if unclear.
+
+          3. Generate release notes and prepend them to CHANGELOG.md:
+             - Find the previous version tag: run 'git tag --list \"v*\" --sort=-version:refname'. The previous tag is the first tag that is NOT the new version's tag. If no previous tag exists, use the root commit.
+             - Collect commits between the previous tag and HEAD using 'git log <range> --pretty=format:\"%s\" --no-merges'.
+             - Categorize commits:
+               - Features: commits starting with add, feat, implement, introduce, support (case-insensitive)
+               - Fixes: commits starting with fix, resolve, patch, correct (case-insensitive)
+               - Changes: everything else
+             - Strip the prefix keyword and capitalize the first letter of each entry.
+             - Format as: '## [<version>] - <YYYY-MM-DD>' followed by sections (Features, Fixes, Changes). Omit empty sections. Use today's date.
+             - If CHANGELOG.md doesn't exist, create it with header '# Changelog' and description line.
+             - Prepend the new entry after the header. Do NOT duplicate if one for this version already exists.
+
+          4. Bump the version:
+             - Run 'npm version <input> --no-git-tag-version' to update package.json and package-lock.json.
+
+          5. Stage and commit:
+             - Stage package.json, package-lock.json, and CHANGELOG.md.
+             - Commit with message: 'release: v<version>'
+
+          6. Create an annotated tag:
+             - Run 'git tag -a v<version> -m \"v<version>\"'
+
+          Do NOT push anything. Do NOT ask for confirmation. Just execute the steps."
+
+      - name: Get tag name
+        id: get-tag
+        run: |
+          TAG=$(git describe --tags --abbrev=0)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag exists
+        run: git rev-parse "${{ steps.get-tag.outputs.tag }}" > /dev/null
+
+      - name: Push commit and tag
+        run: |
+          git push origin main
+          git push origin "${{ steps.get-tag.outputs.tag }}"
+
+  build:
+    needs: [prepare]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -14,6 +99,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
 
       - uses: actions/setup-node@v4
         with:
