@@ -12,6 +12,7 @@ Create a git commit for the current staged (or unstaged) changes using a structu
 
 3. **Stage files if nothing is staged:**
    - If there are no staged changes but there are modified/untracked files, stage the relevant ones.
+   - Only stage files that are relevant to the current task or session. Do NOT stage unrelated changes that happen to exist in the working tree.
    - NEVER stage files that likely contain secrets (`.env`, `credentials.json`, `.key` files, etc.).
    - Prefer staging specific files by name over `git add -A`.
 
