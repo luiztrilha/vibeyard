@@ -39,9 +39,8 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_KEY }}
         run: |
-          claude -p \
-            --allowedTools 'Bash(git:*)' 'Bash(npm:*)' Edit Write Read \
-            "You are performing a release for this project. The version input is: ${{ inputs.version }}
+          cat <<'PROMPT' | claude -p --allowedTools 'Bash(git:*)' 'Bash(npm:*)' Edit Write Read
+          You are performing a release for this project. The version input is: ${{ inputs.version }}
 
           Follow these steps exactly:
 
@@ -53,8 +52,8 @@ jobs:
              - Default to 'patch' if unclear.
 
           3. Generate release notes and prepend them to CHANGELOG.md:
-             - Find the previous version tag: run 'git tag --list \"v*\" --sort=-version:refname'. The previous tag is the first tag that is NOT the new version's tag. If no previous tag exists, use the root commit.
-             - Collect commits between the previous tag and HEAD using 'git log <range> --pretty=format:\"%s\" --no-merges'.
+             - Find the previous version tag: run 'git tag --list "v*" --sort=-version:refname'. The previous tag is the first tag that is NOT the new version's tag. If no previous tag exists, use the root commit.
+             - Collect commits between the previous tag and HEAD using 'git log <range> --pretty=format:"%s" --no-merges'.
              - Categorize commits:
                - Features: commits starting with add, feat, implement, introduce, support (case-insensitive)
                - Fixes: commits starting with fix, resolve, patch, correct (case-insensitive)
@@ -72,9 +71,10 @@ jobs:
              - Commit with message: 'release: v<version>'
 
           6. Create an annotated tag:
-             - Run 'git tag -a v<version> -m \"v<version>\"'
+             - Run 'git tag -a v<version> -m "v<version>"'
 
-          Do NOT push anything. Do NOT ask for confirmation. Just execute the steps."
+          Do NOT push anything. Do NOT ask for confirmation. Just execute the steps.
+          PROMPT
 
       - name: Get tag name
         id: get-tag
