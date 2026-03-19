@@ -108,3 +108,9 @@ export function onChange(callback: CostChangeCallback): void {
 export function removeSession(sessionId: string): void {
   costs.delete(sessionId);
 }
+
+/** @internal Test-only: reset all module state */
+export function _resetForTesting(): void {
+  costs.clear();
+  listeners.length = 0;
+}

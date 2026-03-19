@@ -15,7 +15,21 @@ npm start        # Build then launch Electron app (alias: npm run dev)
 
 No hot reload — changes require rebuild + app restart.
 
-Requires Node v24 (see `.nvmrc`). No test or lint tooling is configured.
+Requires Node v24 (see `.nvmrc`). No lint tooling is configured.
+
+## Testing
+
+```bash
+npm test             # Run all tests once
+npm run test:watch   # Watch mode (re-runs on file changes)
+npm run test:coverage # Run with coverage report (terminal + HTML)
+```
+
+Uses **Vitest** with v8 coverage. Tests are co-located with source files as `*.test.ts`. Coverage HTML report outputs to `coverage/index.html`.
+
+Test files are excluded from production builds via `exclude` in `tsconfig.main.json` and `tsconfig.renderer.json`.
+
+Three renderer modules (`session-cost.ts`, `session-activity.ts`, `session-context.ts`) expose `_resetForTesting()` to clear module-level state between tests. Main process tests mock `fs`, `child_process`, `node-pty`, and `os` via `vi.mock()`.
 
 ## Architecture
 

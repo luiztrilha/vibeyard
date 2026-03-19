@@ -83,3 +83,12 @@ export function getStatus(sessionId: string): SessionStatus {
 export function onChange(callback: StatusChangeCallback): void {
   listeners.push(callback);
 }
+
+/** @internal Test-only: reset all module state */
+export function _resetForTesting(): void {
+  for (const state of sessions.values()) {
+    if (state.stalenessTimer !== null) clearTimeout(state.stalenessTimer);
+  }
+  sessions.clear();
+  listeners.length = 0;
+}

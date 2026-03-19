@@ -39,3 +39,9 @@ export function onChange(callback: ContextChangeCallback): void {
 export function removeSession(sessionId: string): void {
   contexts.delete(sessionId);
 }
+
+/** @internal Test-only: reset all module state */
+export function _resetForTesting(): void {
+  contexts.clear();
+  listeners.length = 0;
+}
