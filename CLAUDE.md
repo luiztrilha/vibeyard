@@ -59,6 +59,10 @@ Each process has its own `tsconfig.*.json`. Main and preload compile via `tsc` (
 
 App state (projects, sessions, layout) persists to `~/.claude-ide/state.json` via the main process store. Saves are debounced and flushed on quit. Sessions track `claudeSessionId` for Claude CLI resume capability.
 
+## Git Workflow
+
+Always use the `/commit` command when committing changes to this project. Do not create commits manually.
+
 ## Maintaining This File
 
 When your changes affect the architecture, build process, key components, data flow, or any other information documented above, update this CLAUDE.md to reflect the new state. This includes adding/removing/renaming files, changing IPC namespaces, modifying the build pipeline, or introducing new patterns. Keep this file accurate so future sessions start with correct context.
