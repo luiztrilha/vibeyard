@@ -179,11 +179,11 @@ export function showHelpDialog(): void {
 
   btnConfirm.addEventListener('click', close);
   btnCancel.addEventListener('click', close);
-  overlay.addEventListener('keydown', handleKeydown);
+  document.addEventListener('keydown', handleKeydown);
 
   (overlay as any)._cleanup = () => {
     btnConfirm.removeEventListener('click', close);
     btnCancel.removeEventListener('click', close);
-    overlay.removeEventListener('keydown', handleKeydown);
+    document.removeEventListener('keydown', handleKeydown);
   };
 }
