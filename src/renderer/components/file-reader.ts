@@ -1,4 +1,5 @@
 import { appState } from '../state.js';
+import { destroySearchBar } from './search-bar.js';
 
 interface FileReaderInstance {
   element: HTMLElement;
@@ -104,6 +105,7 @@ export function createFileReaderPane(sessionId: string, filePath: string, target
 export function destroyFileReaderPane(sessionId: string): void {
   const instance = instances.get(sessionId);
   if (!instance) return;
+  destroySearchBar(sessionId);
   instance.element.remove();
   instances.delete(sessionId);
 }

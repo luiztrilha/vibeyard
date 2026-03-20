@@ -5,10 +5,13 @@ import { toggleProjectTerminal } from './components/project-terminal.js';
 import { toggleDebugPanel } from './components/debug-panel.js';
 import { showHelpDialog } from './components/help-dialog.js';
 import { getFocusedSessionId } from './components/terminal-pane.js';
-import { showSearchBar } from './components/search-bar.js';
+import { showSearchBar, TerminalSearchBackend } from './components/search-bar.js';
 import { toggleGitPanel } from './components/git-panel.js';
 import { showQuickOpen } from './components/quick-open.js';
 import { shortcutManager } from './shortcuts.js';
+import { getFileReaderInstance } from './components/file-reader.js';
+import { getFileViewerInstance } from './components/file-viewer.js';
+import { DomSearchBackend } from './components/dom-search-backend.js';
 
 export function initKeybindings(): void {
   // Menu-based shortcuts (registered via Electron menu accelerators)
@@ -36,8 +39,25 @@ export function initKeybindings(): void {
   shortcutManager.registerHandler('git-panel', () => toggleGitPanel());
   shortcutManager.registerHandler('quick-open', () => showQuickOpen());
   shortcutManager.registerHandler('find-in-terminal', () => {
-    const sessionId = getFocusedSessionId();
-    if (sessionId) showSearchBar(sessionId);
+    const session = appState.activeSession;
+    if (!session) return;
+
+    if (session.type === 'file-reader') {
+      const instance = getFileReaderInstance(session.id);
+      if (!instance) return;
+      const body = instance.element.querySelector('.file-reader-body') as HTMLElement;
+      if (!body) return;
+      showSearchBar(session.id, new DomSearchBackend(body, '.file-reader-line-text'));
+    } else if (session.type === 'diff-viewer') {
+      const instance = getFileViewerInstance(session.id);
+      if (!instance) return;
+      const body = instance.element.querySelector('.file-viewer-body') as HTMLElement;
+      if (!body) return;
+      showSearchBar(session.id, new DomSearchBackend(body, '.diff-line'));
+    } else {
+      const sessionId = getFocusedSessionId();
+      if (sessionId) showSearchBar(sessionId, new TerminalSearchBackend(sessionId));
+    }
   });
   shortcutManager.registerHandler('help', () => showHelpDialog());
 

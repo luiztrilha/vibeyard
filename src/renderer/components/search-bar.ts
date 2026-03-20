@@ -1,19 +1,54 @@
 import { getSearchAddon, getTerminalInstance } from './terminal-pane.js';
 
-const searchBars = new Map<string, HTMLDivElement>();
+export interface SearchBackend {
+  findNext(query: string, options: { caseSensitive: boolean; regex: boolean }): void;
+  findPrevious(query: string, options: { caseSensitive: boolean; regex: boolean }): void;
+  clearDecorations(): void;
+  getContainer(): HTMLElement;
+  focus(): void;
+}
 
-export function showSearchBar(sessionId: string): void {
+export class TerminalSearchBackend implements SearchBackend {
+  constructor(private sessionId: string) {}
+
+  findNext(query: string, options: { caseSensitive: boolean; regex: boolean }): void {
+    const addon = getSearchAddon(this.sessionId);
+    if (addon) addon.findNext(query, options);
+  }
+
+  findPrevious(query: string, options: { caseSensitive: boolean; regex: boolean }): void {
+    const addon = getSearchAddon(this.sessionId);
+    if (addon) addon.findPrevious(query, options);
+  }
+
+  clearDecorations(): void {
+    const addon = getSearchAddon(this.sessionId);
+    if (addon) addon.clearDecorations();
+  }
+
+  getContainer(): HTMLElement {
+    const instance = getTerminalInstance(this.sessionId);
+    return instance!.element;
+  }
+
+  focus(): void {
+    const instance = getTerminalInstance(this.sessionId);
+    if (instance) instance.terminal.focus();
+  }
+}
+
+const searchBars = new Map<string, { bar: HTMLDivElement; backend: SearchBackend }>();
+
+export function showSearchBar(sessionId: string, backend: SearchBackend): void {
   const existing = searchBars.get(sessionId);
   if (existing) {
-    existing.classList.remove('hidden');
-    const input = existing.querySelector('input') as HTMLInputElement;
+    existing.backend = backend;
+    existing.bar.classList.remove('hidden');
+    const input = existing.bar.querySelector('input') as HTMLInputElement;
     input.focus();
     input.select();
     return;
   }
-
-  const instance = getTerminalInstance(sessionId);
-  if (!instance) return;
 
   const bar = document.createElement('div');
   bar.className = 'search-bar';
@@ -55,8 +90,8 @@ export function showSearchBar(sessionId: string): void {
   bar.appendChild(nextBtn);
   bar.appendChild(closeBtn);
 
-  instance.element.appendChild(bar);
-  searchBars.set(sessionId, bar);
+  backend.getContainer().appendChild(bar);
+  searchBars.set(sessionId, { bar, backend });
 
   let caseSensitive = false;
   let regex = false;
@@ -66,9 +101,11 @@ export function showSearchBar(sessionId: string): void {
   }
 
   function doSearch() {
-    const addon = getSearchAddon(sessionId);
-    if (!addon || !input.value) return;
-    addon.findNext(input.value, getOptions());
+    if (!input.value) {
+      backend.clearDecorations();
+      return;
+    }
+    backend.findNext(input.value, getOptions());
   }
 
   input.addEventListener('input', doSearch);
@@ -76,12 +113,11 @@ export function showSearchBar(sessionId: string): void {
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const addon = getSearchAddon(sessionId);
-      if (!addon || !input.value) return;
+      if (!input.value) return;
       if (e.shiftKey) {
-        addon.findPrevious(input.value, getOptions());
+        backend.findPrevious(input.value, getOptions());
       } else {
-        addon.findNext(input.value, getOptions());
+        backend.findNext(input.value, getOptions());
       }
     }
     if (e.key === 'Escape') {
@@ -108,13 +144,11 @@ export function showSearchBar(sessionId: string): void {
   });
 
   prevBtn.addEventListener('click', () => {
-    const addon = getSearchAddon(sessionId);
-    if (addon && input.value) addon.findPrevious(input.value, getOptions());
+    if (input.value) backend.findPrevious(input.value, getOptions());
   });
 
   nextBtn.addEventListener('click', () => {
-    const addon = getSearchAddon(sessionId);
-    if (addon && input.value) addon.findNext(input.value, getOptions());
+    if (input.value) backend.findNext(input.value, getOptions());
   });
 
   closeBtn.addEventListener('click', () => hideSearchBar(sessionId));
@@ -123,20 +157,22 @@ export function showSearchBar(sessionId: string): void {
 }
 
 export function hideSearchBar(sessionId: string): void {
-  const bar = searchBars.get(sessionId);
-  if (!bar) return;
-  bar.classList.add('hidden');
+  const entry = searchBars.get(sessionId);
+  if (!entry) return;
+  entry.bar.classList.add('hidden');
+  entry.backend.clearDecorations();
+  entry.backend.focus();
+}
 
-  // Clear search decorations
-  const addon = getSearchAddon(sessionId);
-  if (addon) addon.clearDecorations();
-
-  // Refocus terminal
-  const instance = getTerminalInstance(sessionId);
-  if (instance) instance.terminal.focus();
+export function destroySearchBar(sessionId: string): void {
+  const entry = searchBars.get(sessionId);
+  if (!entry) return;
+  entry.backend.clearDecorations();
+  entry.bar.remove();
+  searchBars.delete(sessionId);
 }
 
 export function isSearchBarVisible(sessionId: string): boolean {
-  const bar = searchBars.get(sessionId);
-  return !!bar && !bar.classList.contains('hidden');
+  const entry = searchBars.get(sessionId);
+  return !!entry && !entry.bar.classList.contains('hidden');
 }

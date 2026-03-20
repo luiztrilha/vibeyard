@@ -540,6 +540,18 @@ body.debug-panel-open #app {
   margin-left: 2px;
 }
 
+/* Search match highlighting in file reader/viewer */
+.search-match {
+  background: rgba(255, 200, 0, 0.3);
+  border-radius: 2px;
+}
+
+.search-match-current {
+  background: rgba(255, 200, 0, 0.6);
+  outline: 1px solid rgba(255, 200, 0, 0.8);
+  border-radius: 2px;
+}
+
 .session-status-bar {
   height: 20px;
   min-height: 20px;
