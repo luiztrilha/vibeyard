@@ -20,22 +20,23 @@ function defaultState(): PersistedState {
 }
 
 export function loadState(): PersistedState {
-  try {
-    if (!fs.existsSync(STATE_FILE)) {
-      return defaultState();
+  for (const file of [STATE_FILE, STATE_FILE + '.tmp']) {
+    try {
+      if (!fs.existsSync(file)) continue;
+      const raw = fs.readFileSync(file, 'utf-8');
+      const parsed = JSON.parse(raw) as PersistedState;
+      if (parsed.version !== 1) continue;
+      migrateSessionIds(parsed);
+      if (file !== STATE_FILE) {
+        console.warn('Recovered state from temp file');
+      }
+      return parsed;
+    } catch {
+      continue;
     }
-    const raw = fs.readFileSync(STATE_FILE, 'utf-8');
-    const parsed = JSON.parse(raw) as PersistedState;
-    if (parsed.version !== 1) {
-      return defaultState();
-    }
-    // Migrate: claudeSessionId → cliSessionId
-    migrateSessionIds(parsed);
-    return parsed;
-  } catch (err) {
-    console.warn('Failed to load state, using defaults:', err);
-    return defaultState();
   }
+  console.warn('No valid state file found, using defaults');
+  return defaultState();
 }
 
 /** Migrate legacy claudeSessionId fields to cliSessionId */
@@ -59,14 +60,7 @@ export function saveState(state: PersistedState): void {
   }
   lastState = state;
   saveTimer = setTimeout(() => {
-    try {
-      if (!fs.existsSync(STATE_DIR)) {
-        fs.mkdirSync(STATE_DIR, { recursive: true });
-      }
-      fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('Failed to save state:', err);
-    }
+    writeStateAtomically(state);
     saveTimer = null;
   }, 300);
 }
@@ -80,11 +74,17 @@ export function flushState(): void {
 }
 
 export function saveStateSync(state: PersistedState): void {
+  writeStateAtomically(state);
+}
+
+function writeStateAtomically(state: PersistedState): void {
   try {
     if (!fs.existsSync(STATE_DIR)) {
       fs.mkdirSync(STATE_DIR, { recursive: true });
     }
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+    const tmpFile = STATE_FILE + '.tmp';
+    fs.writeFileSync(tmpFile, JSON.stringify(state, null, 2), 'utf-8');
+    fs.renameSync(tmpFile, STATE_FILE);
   } catch (err) {
     console.error('Failed to save state:', err);
   }
