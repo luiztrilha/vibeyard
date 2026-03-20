@@ -381,6 +381,14 @@ class AppState {
     if (!project) return;
     const session = project.sessions.find((s) => s.id === sessionId);
     if (!session) return;
+
+    // If session already had a different cliSessionId (e.g., /clear was used),
+    // archive the previous session and reset the tab name
+    if (session.cliSessionId && session.cliSessionId !== cliSessionId) {
+      this.archiveSession(project, session);
+      session.name = `Session ${project.sessions.length + (project.sessionHistory?.length || 0)}`;
+    }
+
     session.cliSessionId = cliSessionId;
     this.persist();
     this.emit('session-changed');
