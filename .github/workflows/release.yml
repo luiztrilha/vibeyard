@@ -115,14 +115,7 @@ jobs:
 
   build:
     needs: [prepare]
-    strategy:
-      matrix:
-        include:
-          - os: macos-latest
-            platform: mac
-          - os: ubuntu-latest
-            platform: linux
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -152,7 +145,6 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Update release notes
-        if: matrix.platform == 'mac'
         run: gh release edit "${{ needs.prepare.outputs.tag }}" --notes-file RELEASE_NOTES.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
