@@ -69,6 +69,39 @@ describe('getContext', () => {
   });
 });
 
+describe('current_usage fields', () => {
+  it('computes totalTokens from current_usage when available', () => {
+    setContextData('s1', {
+      used_percentage: 42,
+      current_usage: {
+        input_tokens: 10_000,
+        cache_creation_input_tokens: 5_000,
+        cache_read_input_tokens: 85_000,
+      },
+    });
+
+    const ctx = getContext('s1');
+    expect(ctx!.totalTokens).toBe(100_000);
+    expect(ctx!.usedPercentage).toBe(42);
+  });
+
+  it('falls back to top-level totals when current_usage is absent', () => {
+    setContextData('s1', {
+      total_input_tokens: 80_000,
+      total_output_tokens: 20_000,
+      context_window_size: 200_000,
+    });
+
+    const ctx = getContext('s1');
+    expect(ctx!.totalTokens).toBe(100_000);
+  });
+
+  it('handles undefined contextWindow gracefully', () => {
+    setContextData('s1', undefined);
+    expect(getContext('s1')).toBeNull();
+  });
+});
+
 describe('removeSession', () => {
   it('removes session from map', () => {
     setContextData('s1', { total_input_tokens: 100 });

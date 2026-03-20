@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { homedir } from 'os';
-import { STATUS_DIR } from './hook-status';
+import { STATUS_DIR, getStatusLineScriptPath } from './hook-status';
 import type { McpServer, Agent, Skill, Command, ClaudeConfig } from '../shared/types';
 
 export type { McpServer, Agent, Skill, Command, ClaudeConfig } from '../shared/types';
@@ -244,7 +244,6 @@ export function installHooks(): void {
     const existing = cleaned[event] ?? [];
     const hooks: HookHandler[] = [{ type: 'command', command: statusCmd(status) }];
     // Capture Claude session ID on session start and prompt submission
-    // SessionStart is needed to detect /clear (which starts a new session with a new ID)
     if (event === 'SessionStart' || event === 'UserPromptSubmit') {
       hooks.push({ type: 'command', command: captureSessionIdCmd });
     }
@@ -256,6 +255,14 @@ export function installHooks(): void {
   }
 
   settings.hooks = cleaned;
+
+  // Configure the statusLine setting to extract cost/context data.
+  // Claude Code pipes session JSON (with cost, context_window fields) to the
+  // statusLine command's stdin. We use the statusline script to write .cost files.
+  settings.statusLine = {
+    type: 'command',
+    command: getStatusLineScriptPath(),
+  };
 
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');

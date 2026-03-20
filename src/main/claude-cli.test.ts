@@ -408,7 +408,7 @@ describe('installHooks', () => {
     const ccideHookCount = stopHooks.reduce((count: number, m: { hooks: Array<{ command: string }> }) =>
       count + m.hooks.filter((h: { command: string }) => h.command.includes('# ccide-hook')).length, 0
     );
-    // Should have exactly 1 ccide hook (the freshly installed one)
+    // Should have exactly 1 ccide hook (the freshly installed status hook)
     expect(ccideHookCount).toBe(1);
   });
 });

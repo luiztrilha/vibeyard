@@ -5,7 +5,7 @@ import { execSync } from 'child_process';
 import type { CliProvider } from './provider';
 import type { CliProviderMeta, ClaudeConfig } from '../../shared/types';
 import { getFullPath } from '../pty-manager';
-import { getStatusLineScriptPath, installStatusLineScript, cleanupAll as cleanupHookStatus } from '../hook-status';
+import { installStatusLineScript, cleanupAll as cleanupHookStatus } from '../hook-status';
 import { installHooks, getClaudeConfig } from '../claude-cli';
 
 let cachedBinaryPath: string | null = null;
@@ -121,7 +121,6 @@ export class ClaudeProvider implements CliProvider {
     const env = { ...baseEnv };
     delete env.CLAUDE_CODE; // avoid subprocess detection conflicts
     env.CLAUDE_IDE_SESSION_ID = sessionId;
-    env.CLAUDE_CODE_STATUSLINE = getStatusLineScriptPath();
     env.PATH = getFullPath();
     return env;
   }

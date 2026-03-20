@@ -165,7 +165,6 @@ describe('spawnPty', () => {
 
     const env = mockSpawn.mock.calls[0][2].env;
     expect(env.CLAUDE_IDE_SESSION_ID).toBe('s1');
-    expect(env.CLAUDE_CODE_STATUSLINE).toBe('/tmp/ccide/statusline.sh');
     expect(env.CLAUDE_CODE).toBeUndefined();
   });
 

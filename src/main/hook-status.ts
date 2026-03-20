@@ -17,21 +17,27 @@ export function getStatusLineScriptPath(): string {
 export function installStatusLineScript(): void {
   fs.mkdirSync(STATUS_DIR, { recursive: true, mode: 0o700 });
 
+  // Script that extracts cost, context_window, and session_id from hook JSON stdin.
+  // Used by hook commands to write .cost and .sessionid files to STATUS_DIR.
   const script = `#!/bin/sh
-input=$(cat)
-echo "$input" | /usr/bin/python3 -c "
+/usr/bin/python3 -c "
 import sys,json,os
-d=json.load(sys.stdin)
+try:
+    d=json.load(sys.stdin)
+except:
+    sys.exit(0)
+sid=os.environ.get('CLAUDE_IDE_SESSION_ID','')
+if not sid:
+    sys.exit(0)
 cost=d.get('cost',{})
 ctx=d.get('context_window',{})
-sid=os.environ.get('CLAUDE_IDE_SESSION_ID','')
-if sid:
+if cost or ctx:
     with open(f'${STATUS_DIR}/{sid}.cost','w') as f:
         json.dump({'cost':cost,'context_window':ctx},f)
-    claude_sid=d.get('session_id','')
-    if claude_sid:
-        with open(f'${STATUS_DIR}/{sid}.sessionid','w') as f:
-            f.write(claude_sid)
+claude_sid=d.get('session_id','')
+if claude_sid:
+    with open(f'${STATUS_DIR}/{sid}.sessionid','w') as f:
+        f.write(claude_sid)
 " 2>>${STATUS_DIR}/statusline.log
 `;
 

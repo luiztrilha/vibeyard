@@ -118,9 +118,9 @@ describe('buildEnv', () => {
     expect(env.CLAUDE_IDE_SESSION_ID).toBe('sess-123');
   });
 
-  it('sets CLAUDE_CODE_STATUSLINE to the statusline script path', () => {
+  it('does not set CLAUDE_CODE_STATUSLINE (deprecated)', () => {
     const env = provider.buildEnv('sess-123', {});
-    expect(env.CLAUDE_CODE_STATUSLINE).toBe('/tmp/ccide/statusline.sh');
+    expect(env.CLAUDE_CODE_STATUSLINE).toBeUndefined();
   });
 
   it('sets PATH to the augmented PATH', () => {
