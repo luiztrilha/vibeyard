@@ -191,7 +191,35 @@ function showTabContextMenu(x: number, y: number, project: ProjectRecord, sessio
     });
   }
 
+  const moveLeftItem = document.createElement('div');
+  moveLeftItem.className = 'tab-context-menu-item' + (sessionIdx <= 0 ? ' disabled' : '');
+  moveLeftItem.textContent = 'Move Left';
+  if (sessionIdx > 0) {
+    moveLeftItem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideTabContextMenu();
+      appState.reorderSession(project.id, session.id, sessionIdx - 1);
+    });
+  }
+
+  const moveRightItem = document.createElement('div');
+  moveRightItem.className = 'tab-context-menu-item' + (sessionIdx >= totalSessions - 1 ? ' disabled' : '');
+  moveRightItem.textContent = 'Move Right';
+  if (sessionIdx < totalSessions - 1) {
+    moveRightItem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideTabContextMenu();
+      appState.reorderSession(project.id, session.id, sessionIdx + 1);
+    });
+  }
+
+  const moveSeparator = document.createElement('div');
+  moveSeparator.className = 'tab-context-menu-separator';
+
   menu.appendChild(renameItem);
+  menu.appendChild(moveLeftItem);
+  menu.appendChild(moveRightItem);
+  menu.appendChild(moveSeparator);
   menu.appendChild(closeItem);
   menu.appendChild(separator);
   menu.appendChild(closeAllItem);
@@ -229,6 +257,7 @@ function render(): void {
     const isSpecial = isMcp || isDiff || isFileReader;
     tab.className = 'tab-item' + (isActive ? ' active' : '') + (unread ? ' unread' : '');
     tab.dataset.sessionId = session.id;
+    tab.draggable = true;
     tab.title = isDiff ? `Diff: ${session.diffFilePath || session.name}` : isMcp ? `MCP Inspector` : isFileReader ? `File: ${session.fileReaderPath || session.name}` : buildTooltip(getStatus(session.id), session.cliSessionId);
     const costInfo = isSpecial ? null : getCost(session.id);
     const costLabel = costInfo ? `$${costInfo.totalCostUsd.toFixed(2)}` : '';
@@ -264,30 +293,7 @@ function render(): void {
       appState.removeSession(project.id, session.id);
     });
 
-    // Long-press drag-to-reorder
-    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
-
-    tab.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return;
-      longPressTimer = setTimeout(() => {
-        longPressTimer = null;
-        tab.draggable = true;
-        // Trigger dragstart by re-dispatching — browsers need draggable set before drag begins.
-        // We add a visual cue so the user knows drag mode is active.
-        tab.classList.add('dragging');
-      }, 300);
-    });
-
-    tab.addEventListener('mouseup', () => {
-      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-    });
-
-    tab.addEventListener('mouseleave', () => {
-      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-    });
-
     tab.addEventListener('dragstart', (e) => {
-      if (!tab.draggable) { e.preventDefault(); return; }
       e.dataTransfer!.effectAllowed = 'move';
       e.dataTransfer!.setData('text/plain', session.id);
       tab.classList.add('dragging');
@@ -331,7 +337,6 @@ function render(): void {
 
     tab.addEventListener('dragend', () => {
       tab.classList.remove('dragging');
-      tab.draggable = false;
       // Clean up all drag indicators
       tabListEl.querySelectorAll('.drag-over-left, .drag-over-right').forEach(el => {
         el.classList.remove('drag-over-left', 'drag-over-right');
