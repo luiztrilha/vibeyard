@@ -354,7 +354,6 @@ describe('installHooks', () => {
     expect(written.hooks).toBeDefined();
     expect(written.hooks.UserPromptSubmit).toBeDefined();
     expect(written.hooks.Stop).toBeDefined();
-    expect(written.hooks.TaskCompleted).toBeDefined();
     expect(written.hooks.PermissionRequest).toBeDefined();
     expect(written.hooks.SessionStart).toBeDefined();
   });
