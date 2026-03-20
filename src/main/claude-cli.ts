@@ -243,8 +243,9 @@ export function installHooks(): void {
   for (const [event, status] of Object.entries(ideEvents)) {
     const existing = cleaned[event] ?? [];
     const hooks: HookHandler[] = [{ type: 'command', command: statusCmd(status) }];
-    // Capture Claude session ID on first prompt submission
-    if (event === 'UserPromptSubmit') {
+    // Capture Claude session ID on session start and prompt submission
+    // SessionStart is needed to detect /clear (which starts a new session with a new ID)
+    if (event === 'SessionStart' || event === 'UserPromptSubmit') {
       hooks.push({ type: 'command', command: captureSessionIdCmd });
     }
     existing.push({
