@@ -19,7 +19,7 @@ export function init(): void {
     if (prev === 'working' && (status === 'waiting' || status === 'completed' || status === 'permission')) {
       // Find which project this session belongs to
       const project = appState.projects.find(p => p.sessions.some(s => s.id === sessionId));
-      if (project && sessionId !== project.activeSessionId) {
+      if (project && !(sessionId === project.activeSessionId && project.id === appState.activeProjectId)) {
         unreadSessions.add(sessionId);
         notify();
       }
