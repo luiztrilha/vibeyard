@@ -25,10 +25,15 @@ vi.mock('os', () => ({
 
 vi.mock('fs', () => ({
   existsSync: vi.fn(() => false),
+  mkdirSync: vi.fn(),
+  writeFileSync: vi.fn(),
+  readFileSync: vi.fn(() => { throw new Error('ENOENT'); }),
+  readdirSync: vi.fn(() => { throw new Error('ENOENT'); }),
 }));
 
 import * as fs from 'fs';
 import { spawnPty, writePty, resizePty, killPty, getPtyCwd } from './pty-manager';
+import { initProviders } from './providers/registry';
 
 const mockExistsSync = vi.mocked(fs.existsSync);
 
@@ -50,6 +55,7 @@ function createMockPtyProcess() {
 beforeEach(() => {
   vi.clearAllMocks();
   mockExistsSync.mockReturnValue(false);
+  initProviders();
 });
 
 describe('spawnPty', () => {
@@ -57,7 +63,7 @@ describe('spawnPty', () => {
     const proc = createMockPtyProcess();
     mockSpawn.mockReturnValue(proc);
 
-    spawnPty('s1', '/project', null, false, '', vi.fn(), vi.fn());
+    spawnPty('s1', '/project', null, false, '', 'claude', vi.fn(), vi.fn());
 
     expect(mockSpawn).toHaveBeenCalledWith(
       'claude', // falls back to bare 'claude'
@@ -71,11 +77,11 @@ describe('spawnPty', () => {
     );
   });
 
-  it('adds -r flag when resuming with claudeSessionId', () => {
+  it('adds -r flag when resuming with cliSessionId', () => {
     const proc = createMockPtyProcess();
     mockSpawn.mockReturnValue(proc);
 
-    spawnPty('s1', '/project', 'claude-123', true, '', vi.fn(), vi.fn());
+    spawnPty('s1', '/project', 'claude-123', true, '', 'claude', vi.fn(), vi.fn());
 
     expect(mockSpawn).toHaveBeenCalledWith(
       'claude',
@@ -88,7 +94,7 @@ describe('spawnPty', () => {
     const proc = createMockPtyProcess();
     mockSpawn.mockReturnValue(proc);
 
-    spawnPty('s1', '/project', 'claude-123', false, '', vi.fn(), vi.fn());
+    spawnPty('s1', '/project', 'claude-123', false, '', 'claude', vi.fn(), vi.fn());
 
     expect(mockSpawn).toHaveBeenCalledWith(
       'claude',
@@ -101,7 +107,7 @@ describe('spawnPty', () => {
     const proc = createMockPtyProcess();
     mockSpawn.mockReturnValue(proc);
 
-    spawnPty('s1', '/project', null, false, '--verbose --debug', vi.fn(), vi.fn());
+    spawnPty('s1', '/project', null, false, '--verbose --debug', 'claude', vi.fn(), vi.fn());
 
     expect(mockSpawn).toHaveBeenCalledWith(
       'claude',
@@ -115,7 +121,7 @@ describe('spawnPty', () => {
     mockSpawn.mockReturnValue(proc);
     const onData = vi.fn();
 
-    spawnPty('s1', '/project', null, false, '', onData, vi.fn());
+    spawnPty('s1', '/project', null, false, '', 'claude', onData, vi.fn());
     proc._emitData('hello');
 
     expect(onData).toHaveBeenCalledWith('hello');
@@ -126,7 +132,7 @@ describe('spawnPty', () => {
     mockSpawn.mockReturnValue(proc);
     const onExit = vi.fn();
 
-    spawnPty('s1', '/project', null, false, '', vi.fn(), onExit);
+    spawnPty('s1', '/project', null, false, '', 'claude', vi.fn(), onExit);
     proc._emitExit(0, 0);
 
     expect(onExit).toHaveBeenCalledWith(0, 0);
@@ -139,8 +145,10 @@ describe('spawnPty', () => {
     const proc = createMockPtyProcess();
     mockSpawn.mockReturnValue(proc);
 
+    const { initProviders: freshInit } = await import('./providers/registry');
     const { spawnPty: freshSpawnPty } = await import('./pty-manager');
-    freshSpawnPty('s1', '/project', null, false, '', vi.fn(), vi.fn());
+    freshInit();
+    freshSpawnPty('s1', '/project', null, false, '', 'claude', vi.fn(), vi.fn());
 
     expect(mockSpawn).toHaveBeenCalledWith(
       '/usr/local/bin/claude',
@@ -153,7 +161,7 @@ describe('spawnPty', () => {
     const proc = createMockPtyProcess();
     mockSpawn.mockReturnValue(proc);
 
-    spawnPty('s1', '/project', null, false, '', vi.fn(), vi.fn());
+    spawnPty('s1', '/project', null, false, '', 'claude', vi.fn(), vi.fn());
 
     const env = mockSpawn.mock.calls[0][2].env;
     expect(env.CLAUDE_IDE_SESSION_ID).toBe('s1');
@@ -165,7 +173,7 @@ describe('spawnPty', () => {
     const proc = createMockPtyProcess();
     mockSpawn.mockReturnValue(proc);
 
-    spawnPty('s1', '/project', null, false, '', vi.fn(), vi.fn());
+    spawnPty('s1', '/project', null, false, '', 'claude', vi.fn(), vi.fn());
 
     const envPath = mockSpawn.mock.calls[0][2].env.PATH;
     expect(envPath).toContain('/usr/local/bin');
@@ -178,7 +186,7 @@ describe('writePty', () => {
   it('writes to existing PTY', () => {
     const proc = createMockPtyProcess();
     mockSpawn.mockReturnValue(proc);
-    spawnPty('s1', '/project', null, false, '', vi.fn(), vi.fn());
+    spawnPty('s1', '/project', null, false, '', 'claude', vi.fn(), vi.fn());
 
     writePty('s1', 'input');
     expect(mockWrite).toHaveBeenCalledWith('input');
@@ -194,7 +202,7 @@ describe('resizePty', () => {
   it('resizes existing PTY', () => {
     const proc = createMockPtyProcess();
     mockSpawn.mockReturnValue(proc);
-    spawnPty('s1', '/project', null, false, '', vi.fn(), vi.fn());
+    spawnPty('s1', '/project', null, false, '', 'claude', vi.fn(), vi.fn());
 
     resizePty('s1', 200, 50);
     expect(mockResize).toHaveBeenCalledWith(200, 50);
@@ -205,7 +213,7 @@ describe('killPty', () => {
   it('kills and removes PTY', () => {
     const proc = createMockPtyProcess();
     mockSpawn.mockReturnValue(proc);
-    spawnPty('s1', '/project', null, false, '', vi.fn(), vi.fn());
+    spawnPty('s1', '/project', null, false, '', 'claude', vi.fn(), vi.fn());
 
     killPty('s1');
     expect(mockKill).toHaveBeenCalled();
@@ -227,7 +235,7 @@ describe('getPtyCwd', () => {
     const proc = createMockPtyProcess();
     (proc as unknown as { pid: number }).pid = 1000;
     mockSpawn.mockReturnValue(proc);
-    spawnPty('s1', '/project', null, false, '', vi.fn(), vi.fn());
+    spawnPty('s1', '/project', null, false, '', 'claude', vi.fn(), vi.fn());
 
     // pgrep for pid 1000 returns child 2000
     mockExecFile.mockImplementationOnce((_cmd: string, args: string[], _opts: unknown, callback: (err: Error | null, stdout: string) => void) => {
@@ -255,7 +263,7 @@ describe('getPtyCwd', () => {
     const proc = createMockPtyProcess();
     (proc as unknown as { pid: number }).pid = 1000;
     mockSpawn.mockReturnValue(proc);
-    spawnPty('s2', '/project', null, false, '', vi.fn(), vi.fn());
+    spawnPty('s2', '/project', null, false, '', 'claude', vi.fn(), vi.fn());
 
     // pgrep returns no children
     mockExecFile.mockImplementationOnce((_cmd: string, _args: string[], _opts: unknown, callback: (err: Error | null, stdout: string) => void) => {

@@ -148,7 +148,7 @@ class AppState {
       id: crypto.randomUUID(),
       name,
       ...(args ? { args } : {}),
-      claudeSessionId: null,
+      cliSessionId: null,
       createdAt: new Date().toISOString(),
     };
     project.sessions.push(session);
@@ -182,7 +182,7 @@ class AppState {
       diffFilePath: filePath,
       diffArea: area,
       ...(worktreePath ? { worktreePath } : {}),
-      claudeSessionId: null,
+      cliSessionId: null,
       createdAt: new Date().toISOString(),
     };
     project.sessions.push(session);
@@ -214,7 +214,7 @@ class AppState {
       name,
       type: 'file-reader',
       fileReaderPath: filePath,
-      claudeSessionId: null,
+      cliSessionId: null,
       createdAt: new Date().toISOString(),
     };
     project.sessions.push(session);
@@ -233,7 +233,7 @@ class AppState {
       id: crypto.randomUUID(),
       name,
       type: 'mcp-inspector',
-      claudeSessionId: null,
+      cliSessionId: null,
       createdAt: new Date().toISOString(),
     };
     project.sessions.push(session);
@@ -267,14 +267,19 @@ class AppState {
     this.emit('session-changed');
   }
 
-  updateSessionClaudeId(projectId: string, sessionId: string, claudeSessionId: string): void {
+  updateSessionCliId(projectId: string, sessionId: string, cliSessionId: string): void {
     const project = this.state.projects.find((p) => p.id === projectId);
     if (!project) return;
     const session = project.sessions.find((s) => s.id === sessionId);
     if (!session) return;
-    session.claudeSessionId = claudeSessionId;
+    session.cliSessionId = cliSessionId;
     this.persist();
     this.emit('session-changed');
+  }
+
+  /** @deprecated Use updateSessionCliId */
+  updateSessionClaudeId(projectId: string, sessionId: string, claudeSessionId: string): void {
+    this.updateSessionCliId(projectId, sessionId, claudeSessionId);
   }
 
   renameSession(projectId: string, sessionId: string, name: string): void {

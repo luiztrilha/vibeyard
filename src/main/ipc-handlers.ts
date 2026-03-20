@@ -4,11 +4,12 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { spawnPty, spawnShellPty, writePty, resizePty, killPty, isSilencedExit, getPtyCwd } from './pty-manager';
 import { loadState, saveState, PersistedState } from './store';
-import { getClaudeConfig } from './claude-cli';
 import { startWatching, cleanupSessionStatus } from './hook-status';
 import { getGitStatus, getGitFiles, getGitDiff, getGitWorktrees } from './git-status';
 import { registerMcpHandlers } from './mcp-ipc-handlers';
 import { checkForUpdates, quitAndInstall } from './auto-updater';
+import { getProvider, getProviderMeta, getAllProviderMetas } from './providers/registry';
+import type { ProviderId } from '../shared/types';
 
 /**
  * Check if a resolved path is within one of the known project directories.
@@ -25,7 +26,7 @@ export function resetHookWatcher(): void {
 }
 
 export function registerIpcHandlers(): void {
-  ipcMain.handle('pty:create', (_event, sessionId: string, cwd: string, claudeSessionId: string | null, isResume: boolean, extraArgs: string) => {
+  ipcMain.handle('pty:create', (_event, sessionId: string, cwd: string, cliSessionId: string | null, isResume: boolean, extraArgs: string, providerId: ProviderId = 'claude') => {
     const win = BrowserWindow.getAllWindows()[0];
     if (!win) return;
 
@@ -38,9 +39,10 @@ export function registerIpcHandlers(): void {
     spawnPty(
       sessionId,
       cwd,
-      claudeSessionId,
+      cliSessionId,
       isResume,
       extraArgs,
+      providerId,
       (data) => {
         const w = BrowserWindow.getAllWindows()[0];
         if (w && !w.isDestroyed()) {
@@ -108,8 +110,23 @@ export function registerIpcHandlers(): void {
     saveState(state);
   });
 
+  ipcMain.handle('provider:getConfig', async (_event, providerId: ProviderId, projectPath: string) => {
+    const provider = getProvider(providerId);
+    return provider.getConfig(projectPath);
+  });
+
+  // Backward compatibility alias
   ipcMain.handle('claude:getConfig', async (_event, projectPath: string) => {
-    return getClaudeConfig(projectPath);
+    const provider = getProvider('claude');
+    return provider.getConfig(projectPath);
+  });
+
+  ipcMain.handle('provider:getMeta', (_event, providerId: ProviderId) => {
+    return getProviderMeta(providerId);
+  });
+
+  ipcMain.handle('provider:listProviders', () => {
+    return getAllProviderMetas();
   });
 
   ipcMain.handle('fs:browseDirectory', async () => {

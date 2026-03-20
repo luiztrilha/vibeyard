@@ -1,5 +1,26 @@
 // Shared type definitions used across main, preload, and renderer processes.
 
+// --- Provider ---
+
+export type ProviderId = 'claude' | 'copilot' | 'gemini';
+
+export interface CliProviderCapabilities {
+  sessionResume: boolean;
+  costTracking: boolean;
+  contextWindow: boolean;
+  hookStatus: boolean;
+  configReading: boolean;
+  shiftEnterNewline: boolean;
+}
+
+export interface CliProviderMeta {
+  id: ProviderId;
+  displayName: string;
+  binaryName: string;
+  capabilities: CliProviderCapabilities;
+  defaultContextWindowSize: number;
+}
+
 // --- Git ---
 
 export interface GitWorktree {
@@ -29,8 +50,11 @@ export interface SessionRecord {
   id: string;
   name: string;
   type?: 'claude' | 'mcp-inspector' | 'diff-viewer' | 'file-reader';
+  providerId?: ProviderId;
   args?: string;
-  claudeSessionId: string | null;
+  cliSessionId: string | null;
+  /** @deprecated Use cliSessionId instead. Kept for state migration compatibility. */
+  claudeSessionId?: string | null;
   mcpServerUrl?: string;
   diffFilePath?: string;
   diffArea?: string;

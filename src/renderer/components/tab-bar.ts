@@ -17,9 +17,9 @@ let activeContextMenu: HTMLElement | null = null;
 const unreadSessions = new Set<string>();
 const prevStatus = new Map<string, SessionStatus>();
 
-function buildTooltip(status: SessionStatus, claudeSessionId?: string): string {
+function buildTooltip(status: SessionStatus, cliSessionId?: string): string {
   const statusLine = `Status: ${status}`;
-  return claudeSessionId ? `${statusLine}\nSession: ${claudeSessionId}` : statusLine;
+  return cliSessionId ? `${statusLine}\nSession: ${cliSessionId}` : statusLine;
 }
 
 export function initTabBar(): void {
@@ -58,7 +58,7 @@ export function initTabBar(): void {
     const tab = tabListEl.querySelector(`.tab-item[data-session-id="${sessionId}"]`) as HTMLElement | null;
     if (tab) {
       const session = appState.activeProject?.sessions.find(s => s.id === sessionId);
-      tab.title = buildTooltip(status, session?.claudeSessionId);
+      tab.title = buildTooltip(status, session?.cliSessionId);
     }
 
     // Mark as unread if working → waiting/completed and not the active session
@@ -245,7 +245,7 @@ function render(): void {
     const isSpecial = isMcp || isDiff || isFileReader;
     tab.className = 'tab-item' + (isActive ? ' active' : '') + (isUnread ? ' unread' : '');
     tab.dataset.sessionId = session.id;
-    tab.title = isDiff ? `Diff: ${session.diffFilePath || session.name}` : isMcp ? `MCP Inspector` : isFileReader ? `File: ${session.fileReaderPath || session.name}` : buildTooltip(getStatus(session.id), session.claudeSessionId);
+    tab.title = isDiff ? `Diff: ${session.diffFilePath || session.name}` : isMcp ? `MCP Inspector` : isFileReader ? `File: ${session.fileReaderPath || session.name}` : buildTooltip(getStatus(session.id), session.cliSessionId);
     const costInfo = isSpecial ? null : getCost(session.id);
     const costLabel = costInfo ? `$${costInfo.totalCostUsd.toFixed(2)}` : '';
     const namePrefix = isDiff ? '<span class="tab-diff-badge">DIFF</span> ' : isMcp ? '<span class="tab-mcp-badge">MCP</span> ' : isFileReader ? '<span class="tab-file-badge">FILE</span> ' : '';

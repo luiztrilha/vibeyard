@@ -1,11 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { CostData } from '../shared/types';
+import type { CostData, ProviderId, CliProviderMeta } from '../shared/types';
 
 export type { CostData } from '../shared/types';
 
 export interface ClaudeIdeApi {
   pty: {
-    create(sessionId: string, cwd: string, claudeSessionId: string | null, isResume: boolean, extraArgs?: string): Promise<void>;
+    create(sessionId: string, cwd: string, cliSessionId: string | null, isResume: boolean, extraArgs?: string, providerId?: ProviderId): Promise<void>;
     createShell(sessionId: string, cwd: string): Promise<void>;
     write(sessionId: string, data: string): void;
     resize(sessionId: string, cols: number, rows: number): void;
@@ -16,6 +16,8 @@ export interface ClaudeIdeApi {
   };
   session: {
     onHookStatus(callback: (sessionId: string, status: 'working' | 'waiting' | 'completed' | 'permission') => void): () => void;
+    onCliSessionId(callback: (sessionId: string, cliSessionId: string) => void): () => void;
+    /** @deprecated Use onCliSessionId instead */
     onClaudeSessionId(callback: (sessionId: string, claudeSessionId: string) => void): () => void;
     onCostData(callback: (sessionId: string, costData: CostData) => void): () => void;
   };
@@ -29,6 +31,12 @@ export interface ClaudeIdeApi {
     load(): Promise<unknown>;
     save(state: unknown): Promise<void>;
   };
+  provider: {
+    getConfig(providerId: ProviderId, projectPath: string): Promise<unknown>;
+    getMeta(providerId: ProviderId): Promise<CliProviderMeta>;
+    listProviders(): Promise<CliProviderMeta[]>;
+  };
+  /** @deprecated Use provider namespace instead */
   claude: {
     getConfig(projectPath: string): Promise<unknown>;
   };
@@ -79,8 +87,8 @@ function onChannel(channel: string, callback: (...args: unknown[]) => void): () 
 
 const api: ClaudeIdeApi = {
   pty: {
-    create: (sessionId, cwd, claudeSessionId, isResume, extraArgs) =>
-      ipcRenderer.invoke('pty:create', sessionId, cwd, claudeSessionId, isResume, extraArgs || ''),
+    create: (sessionId, cwd, cliSessionId, isResume, extraArgs, providerId) =>
+      ipcRenderer.invoke('pty:create', sessionId, cwd, cliSessionId, isResume, extraArgs || '', providerId || 'claude'),
     createShell: (sessionId, cwd) =>
       ipcRenderer.invoke('pty:createShell', sessionId, cwd),
     write: (sessionId, data) =>
@@ -101,6 +109,9 @@ const api: ClaudeIdeApi = {
     onHookStatus: (callback) =>
       onChannel('session:hookStatus', (sessionId, status) =>
         callback(sessionId as string, status as 'working' | 'waiting' | 'completed' | 'permission')),
+    onCliSessionId: (callback) =>
+      onChannel('session:cliSessionId', (sessionId, cliSessionId) =>
+        callback(sessionId as string, cliSessionId as string)),
     onClaudeSessionId: (callback) =>
       onChannel('session:claudeSessionId', (sessionId, claudeSessionId) =>
         callback(sessionId as string, claudeSessionId as string)),
@@ -113,6 +124,11 @@ const api: ClaudeIdeApi = {
     browseDirectory: () => ipcRenderer.invoke('fs:browseDirectory'),
     listFiles: (cwd: string, query: string) => ipcRenderer.invoke('fs:listFiles', cwd, query),
     readFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath),
+  },
+  provider: {
+    getConfig: (providerId, projectPath) => ipcRenderer.invoke('provider:getConfig', providerId, projectPath),
+    getMeta: (providerId) => ipcRenderer.invoke('provider:getMeta', providerId),
+    listProviders: () => ipcRenderer.invoke('provider:listProviders'),
   },
   claude: {
     getConfig: (projectPath) => ipcRenderer.invoke('claude:getConfig', projectPath),

@@ -20,7 +20,7 @@ let countBar: HTMLElement | null = null;
 const TYPE_COLORS: Record<string, string> = {
   'hookStatus': '#f4b400',
   'costData': '#34a853',
-  'claudeSessionId': '#4285f4',
+  'cliSessionId': '#4285f4',
   'ptyData': '#888',
   'ptyExit': '#e94560',
   'stateEvent': '#bb86fc',

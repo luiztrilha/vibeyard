@@ -111,13 +111,14 @@ describe('hook-status', () => {
       expect(mockSend).not.toHaveBeenCalled();
     });
 
-    it('.sessionid sends session:claudeSessionId', () => {
+    it('.sessionid sends session:cliSessionId and session:claudeSessionId', () => {
       const win = createMockWin();
       startWatching(win);
 
       vi.mocked(fs.readFileSync).mockReturnValue('claude-session-xyz');
       watchCallback!('change', 'abc123.sessionid');
 
+      expect(mockSend).toHaveBeenCalledWith('session:cliSessionId', 'abc123', 'claude-session-xyz');
       expect(mockSend).toHaveBeenCalledWith('session:claudeSessionId', 'abc123', 'claude-session-xyz');
     });
 
@@ -190,9 +191,10 @@ describe('hook-status', () => {
       resyncAllSessions(win);
 
       expect(mockSend).toHaveBeenCalledWith('session:hookStatus', 's1', 'waiting');
+      expect(mockSend).toHaveBeenCalledWith('session:cliSessionId', 's2', 'claude-sess-1');
       expect(mockSend).toHaveBeenCalledWith('session:claudeSessionId', 's2', 'claude-sess-1');
       expect(mockSend).toHaveBeenCalledWith('session:costData', 's3', { cost: {} });
-      expect(mockSend).toHaveBeenCalledTimes(3);
+      expect(mockSend).toHaveBeenCalledTimes(4);
     });
 
     it('is a no-op on destroyed window', () => {

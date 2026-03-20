@@ -51,12 +51,12 @@ async function main(): Promise<void> {
     setHookStatus(sessionId, status);
   });
 
-  window.claudeIde.session.onClaudeSessionId((sessionId, claudeSessionId) => {
-    logDebugEvent('claudeSessionId', sessionId, claudeSessionId);
-    // Find the project containing this session and persist the Claude session ID
+  window.claudeIde.session.onCliSessionId((sessionId, cliSessionId) => {
+    logDebugEvent('cliSessionId', sessionId, cliSessionId);
+    // Find the project containing this session and persist the CLI session ID
     const project = appState.projects.find(p => p.sessions.some(s => s.id === sessionId));
     if (project) {
-      appState.updateSessionClaudeId(project.id, sessionId, claudeSessionId);
+      appState.updateSessionCliId(project.id, sessionId, cliSessionId);
     }
   });
 

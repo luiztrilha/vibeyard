@@ -5,6 +5,7 @@ import { SearchAddon } from '@xterm/addon-search';
 import { initSession, removeSession } from '../session-activity.js';
 import { removeSession as removeCostSession, type CostInfo } from '../session-cost.js';
 import { removeSession as removeContextSession, type ContextWindowInfo } from '../session-context.js';
+import type { ProviderId } from '../types.js';
 
 interface TerminalInstance {
   terminal: Terminal;
@@ -13,7 +14,8 @@ interface TerminalInstance {
   element: HTMLDivElement;
   sessionId: string;
   projectPath: string;
-  claudeSessionId: string | null;
+  cliSessionId: string | null;
+  providerId: ProviderId;
   args: string;
   isResume: boolean;
   spawned: boolean;
@@ -26,9 +28,10 @@ let focusedSessionId: string | null = null;
 export function createTerminalPane(
   sessionId: string,
   projectPath: string,
-  claudeSessionId: string | null,
+  cliSessionId: string | null,
   isResume: boolean = false,
-  args: string = ''
+  args: string = '',
+  providerId: ProviderId = 'claude'
 ): TerminalInstance {
   if (instances.has(sessionId)) {
     return instances.get(sessionId)!;
@@ -102,7 +105,8 @@ export function createTerminalPane(
     element,
     sessionId,
     projectPath,
-    claudeSessionId,
+    cliSessionId,
+    providerId,
     args,
     isResume,
     spawned: false,
@@ -149,7 +153,7 @@ export async function spawnTerminal(sessionId: string): Promise<void> {
   if (overlay) overlay.remove();
 
   initSession(sessionId);
-  await window.claudeIde.pty.create(sessionId, instance.projectPath, instance.claudeSessionId, instance.isResume, instance.args);
+  await window.claudeIde.pty.create(sessionId, instance.projectPath, instance.cliSessionId, instance.isResume, instance.args, instance.providerId);
   instance.isResume = true; // subsequent spawns (e.g. Restart Session) should resume
 }
 

@@ -2,8 +2,8 @@ import * as pty from 'node-pty';
 import { execSync, execFile } from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
-import * as fs from 'fs';
-import { getStatusLineScriptPath } from './hook-status';
+import type { ProviderId } from '../shared/types';
+import { getProvider } from './providers/registry';
 
 interface PtyInstance {
   process: pty.IPty;
@@ -21,7 +21,7 @@ const silencedExits = new Set<string>();
  */
 let cachedFullPath: string | null = null;
 
-function getFullPath(): string {
+export function getFullPath(): string {
   if (cachedFullPath) return cachedFullPath;
 
   const shell = process.env.SHELL || '/bin/zsh';
@@ -60,54 +60,13 @@ function getFullPath(): string {
   return cachedFullPath;
 }
 
-/**
- * Resolve the full path to the `claude` binary.
- * Falls back to bare 'claude' if resolution fails.
- */
-function resolveClaudePath(): string {
-  const fullPath = getFullPath();
-
-  // Check common locations directly
-  const candidates = [
-    '/usr/local/bin/claude',
-    '/opt/homebrew/bin/claude',
-    path.join(os.homedir(), '.local', 'bin', 'claude'),
-    path.join(os.homedir(), '.npm-global', 'bin', 'claude'),
-  ];
-  for (const candidate of candidates) {
-    try {
-      if (fs.existsSync(candidate)) return candidate;
-    } catch {}
-  }
-
-  // Try `which` with augmented PATH
-  try {
-    const resolved = execSync('which claude', {
-      env: { ...process.env, PATH: fullPath },
-      encoding: 'utf-8',
-      timeout: 3000,
-    }).trim();
-    if (resolved) return resolved;
-  } catch (err) { console.warn('Failed to resolve claude path via which:', err); }
-
-  return 'claude';
-}
-
-let cachedClaudePath: string | null = null;
-
-function getClaudeBinary(): string {
-  if (!cachedClaudePath) {
-    cachedClaudePath = resolveClaudePath();
-  }
-  return cachedClaudePath;
-}
-
 export function spawnPty(
   sessionId: string,
   cwd: string,
-  claudeSessionId: string | null,
+  cliSessionId: string | null,
   isResume: boolean,
   extraArgs: string,
+  providerId: ProviderId,
   onData: (data: string) => void,
   onExit: (exitCode: number, signal?: number) => void
 ): void {
@@ -117,26 +76,11 @@ export function spawnPty(
     killPty(sessionId);
   }
 
-  const env = { ...process.env };
-  delete env.CLAUDE_CODE; // avoid subprocess detection conflicts
-  env.CLAUDE_IDE_SESSION_ID = sessionId;
-  env.CLAUDE_CODE_STATUSLINE = getStatusLineScriptPath();
-  env.PATH = getFullPath();
+  const provider = getProvider(providerId);
+  const env = provider.buildEnv(sessionId, { ...process.env } as Record<string, string>);
+  const args = provider.buildArgs({ cliSessionId, isResume, extraArgs });
+  const shell = provider.resolveBinaryPath();
 
-  const args: string[] = [];
-  if (claudeSessionId) {
-    if (isResume) {
-      args.push('-r', claudeSessionId);
-    } else {
-      args.push('--session-id', claudeSessionId);
-    }
-  }
-
-  if (extraArgs) {
-    args.push(...extraArgs.split(/\s+/).filter(Boolean));
-  }
-
-  const shell = getClaudeBinary();
   const ptyProcess = pty.spawn(shell, args, {
     name: 'xterm-256color',
     cols: 120,

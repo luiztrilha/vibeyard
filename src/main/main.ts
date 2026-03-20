@@ -4,10 +4,9 @@ import { registerIpcHandlers, resetHookWatcher } from './ipc-handlers';
 import { killAllPtys } from './pty-manager';
 import { flushState } from './store';
 import { createAppMenu } from './menu';
-import { cleanupAll as cleanupHookStatus, installStatusLineScript, restartAndResync } from './hook-status';
-import { installHooks } from './claude-cli';
+import { restartAndResync } from './hook-status';
+import { initProviders, getAllProviders } from './providers/registry';
 import { initAutoUpdater } from './auto-updater';
-import { validatePrerequisites } from './prerequisites';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -41,15 +40,28 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  const prereq = validatePrerequisites();
-  if (!prereq.ok) {
-    dialog.showErrorBox('CCide — Missing Prerequisite', prereq.message);
-    app.quit();
-    return;
+  initProviders();
+
+  // Validate all registered providers; block on Claude (default), warn on others
+  for (const provider of getAllProviders()) {
+    const prereq = provider.validatePrerequisites();
+    if (!prereq.ok) {
+      if (provider.meta.id === 'claude') {
+        dialog.showErrorBox('CCide — Missing Prerequisite', prereq.message);
+        app.quit();
+        return;
+      } else {
+        console.warn(`Provider "${provider.meta.displayName}" not available: ${prereq.message}`);
+      }
+    }
   }
 
-  installHooks();
-  installStatusLineScript();
+  // Install hooks and status scripts for all providers
+  for (const provider of getAllProviders()) {
+    provider.installHooks();
+    provider.installStatusScripts();
+  }
+
   registerIpcHandlers();
   createAppMenu();
   createWindow();
@@ -81,7 +93,10 @@ app.on('before-quit', () => {
     win.webContents.send('app:quitting');
   }
   killAllPtys();
-  cleanupHookStatus();
+  // Cleanup all providers
+  for (const provider of getAllProviders()) {
+    provider.cleanup();
+  }
 });
 
 app.on('window-all-closed', () => {

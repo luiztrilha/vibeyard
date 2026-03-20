@@ -1,9 +1,9 @@
-export type { McpServer, Agent, Skill, Command, ClaudeConfig, GitWorktree, GitFileEntry, CostData, McpResult } from '../shared/types.js';
-import type { CostData, ClaudeConfig, GitWorktree, McpResult } from '../shared/types.js';
+export type { McpServer, Agent, Skill, Command, ClaudeConfig, GitWorktree, GitFileEntry, CostData, McpResult, ProviderId, CliProviderMeta, CliProviderCapabilities } from '../shared/types.js';
+import type { CostData, ClaudeConfig, GitWorktree, McpResult, ProviderId, CliProviderMeta } from '../shared/types.js';
 
 export interface ClaudeIdeApi {
   pty: {
-    create(sessionId: string, cwd: string, claudeSessionId: string | null, isResume: boolean): Promise<void>;
+    create(sessionId: string, cwd: string, cliSessionId: string | null, isResume: boolean, extraArgs?: string, providerId?: ProviderId): Promise<void>;
     createShell(sessionId: string, cwd: string): Promise<void>;
     write(sessionId: string, data: string): void;
     resize(sessionId: string, cols: number, rows: number): void;
@@ -14,6 +14,8 @@ export interface ClaudeIdeApi {
   };
   session: {
     onHookStatus(callback: (sessionId: string, status: 'working' | 'waiting') => void): () => void;
+    onCliSessionId(callback: (sessionId: string, cliSessionId: string) => void): () => void;
+    /** @deprecated Use onCliSessionId */
     onClaudeSessionId(callback: (sessionId: string, claudeSessionId: string) => void): () => void;
     onCostData(callback: (sessionId: string, costData: CostData) => void): () => void;
   };
@@ -27,6 +29,12 @@ export interface ClaudeIdeApi {
     load(): Promise<unknown>;
     save(state: unknown): Promise<void>;
   };
+  provider: {
+    getConfig(providerId: ProviderId, projectPath: string): Promise<ClaudeConfig>;
+    getMeta(providerId: ProviderId): Promise<CliProviderMeta>;
+    listProviders(): Promise<CliProviderMeta[]>;
+  };
+  /** @deprecated Use provider namespace */
   claude: {
     getConfig(projectPath: string): Promise<ClaudeConfig>;
   };

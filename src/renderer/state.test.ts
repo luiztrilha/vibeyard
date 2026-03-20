@@ -200,7 +200,7 @@ describe('addSession()', () => {
     expect(session).toBeDefined();
     expect(session.name).toBe('S1');
     expect(session.args).toBe('--verbose');
-    expect(session.claudeSessionId).toBeNull();
+    expect(session.cliSessionId).toBeNull();
     expect(appState.activeProject!.activeSessionId).toBe(session.id);
   });
 
@@ -332,13 +332,13 @@ describe('setActiveSession()', () => {
   });
 });
 
-describe('updateSessionClaudeId()', () => {
-  it('updates claudeSessionId and persists', () => {
+describe('updateSessionCliId()', () => {
+  it('updates cliSessionId and persists', () => {
     const project = addProject();
     const session = appState.addSession(project.id, 'S1')!;
     mockSave.mockClear();
-    appState.updateSessionClaudeId(project.id, session.id, 'claude-abc');
-    expect(appState.activeSession!.claudeSessionId).toBe('claude-abc');
+    appState.updateSessionCliId(project.id, session.id, 'claude-abc');
+    expect(appState.activeSession!.cliSessionId).toBe('claude-abc');
     expect(mockSave).toHaveBeenCalled();
   });
 });

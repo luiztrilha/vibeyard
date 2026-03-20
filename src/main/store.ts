@@ -29,10 +29,27 @@ export function loadState(): PersistedState {
     if (parsed.version !== 1) {
       return defaultState();
     }
+    // Migrate: claudeSessionId → cliSessionId
+    migrateSessionIds(parsed);
     return parsed;
   } catch (err) {
     console.warn('Failed to load state, using defaults:', err);
     return defaultState();
+  }
+}
+
+/** Migrate legacy claudeSessionId fields to cliSessionId */
+function migrateSessionIds(state: PersistedState): void {
+  for (const project of state.projects) {
+    for (const session of project.sessions) {
+      const s = session as unknown as Record<string, unknown>;
+      if (s.claudeSessionId !== undefined && s.cliSessionId === undefined) {
+        s.cliSessionId = s.claudeSessionId;
+      }
+      if (!s.providerId) {
+        s.providerId = 'claude';
+      }
+    }
   }
 }
 

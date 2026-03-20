@@ -53,7 +53,7 @@ export function initSplitLayout(): void {
 }
 
 function onSessionAdded(data: unknown): void {
-  const { session } = data as { projectId: string; session: { id: string; type?: string; claudeSessionId: string | null; args?: string; diffFilePath?: string; diffArea?: string; worktreePath?: string; fileReaderPath?: string } };
+  const { session } = data as { projectId: string; session: { id: string; type?: string; cliSessionId: string | null; providerId?: string; args?: string; diffFilePath?: string; diffArea?: string; worktreePath?: string; fileReaderPath?: string } };
   const project = appState.activeProject;
   if (!project) return;
 
@@ -68,7 +68,7 @@ function onSessionAdded(data: unknown): void {
     renderLayout();
   } else {
     // Create and spawn immediately
-    createTerminalPane(session.id, project.path, session.claudeSessionId, false, session.args || '');
+    createTerminalPane(session.id, project.path, session.cliSessionId, false, session.args || '', (session.providerId as import('../../shared/types').ProviderId) || 'claude');
     renderLayout();
 
     // Spawn after layout is rendered so terminal has dimensions
@@ -122,7 +122,7 @@ export function renderLayout(): void {
       }
     } else {
       if (!getTerminalInstance(session.id)) {
-        createTerminalPane(session.id, project.path, session.claudeSessionId, !!session.claudeSessionId, session.args || '');
+        createTerminalPane(session.id, project.path, session.cliSessionId, !!session.cliSessionId, session.args || '', session.providerId || 'claude');
       }
     }
   }
