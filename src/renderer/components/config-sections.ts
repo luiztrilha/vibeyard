@@ -86,9 +86,18 @@ function esc(s: string): string {
   return d.innerHTML;
 }
 
+function applyVisibility(): void {
+  const container = document.getElementById('config-sections');
+  if (!container) return;
+  const visible = appState.preferences.sidebarViews?.configSections ?? true;
+  container.classList.toggle('hidden', !visible);
+}
+
 async function refresh(): Promise<void> {
   const container = document.getElementById('config-sections');
   if (!container) return;
+
+  applyVisibility();
 
   const project = appState.activeProject;
   if (!project) {
@@ -140,4 +149,5 @@ async function refresh(): Promise<void> {
 export function initConfigSections(): void {
   appState.on('project-changed', () => refresh());
   appState.on('state-loaded', () => refresh());
+  appState.on('preferences-changed', () => applyVisibility());
 }

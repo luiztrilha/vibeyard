@@ -761,6 +761,10 @@ body.debug-panel-open #app {
   border-top: 1px solid var(--border);
 }
 
+#config-sections.hidden {
+  display: none;
+}
+
 .config-section {
   border-bottom: 1px solid var(--border);
 }
@@ -1636,6 +1640,10 @@ select.mcp-form-input {
   border-top: 1px solid var(--border);
 }
 
+#git-panel.hidden {
+  display: none;
+}
+
 #git-panel:empty {
   border-top: none;
 }
@@ -2187,6 +2195,10 @@ select.mcp-form-input {
 /* Session History */
 #session-history {
   border-top: 1px solid var(--border);
+}
+
+#session-history.hidden {
+  display: none;
 }
 
 #session-history:empty {

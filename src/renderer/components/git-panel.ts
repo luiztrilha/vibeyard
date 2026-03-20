@@ -78,9 +78,18 @@ function renderWorktreeSelector(container: HTMLElement, project: { id: string; p
   }
 }
 
+function applyGitPanelVisibility(): void {
+  const container = document.getElementById('git-panel');
+  if (!container) return;
+  const visible = appState.preferences.sidebarViews?.gitPanel ?? true;
+  container.classList.toggle('hidden', !visible);
+}
+
 async function refresh(): Promise<void> {
   const container = document.getElementById('git-panel');
   if (!container) return;
+
+  applyGitPanelVisibility();
 
   const project = appState.activeProject;
   if (!project) {
@@ -264,4 +273,5 @@ export function initGitPanel(): void {
 
   // Auto-switch on session change
   appState.on('session-changed', () => refresh());
+  appState.on('preferences-changed', () => applyGitPanelVisibility());
 }

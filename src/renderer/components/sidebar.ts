@@ -36,6 +36,7 @@ export function initSidebar(): void {
   });
 
   onUnreadChange(render);
+  appState.on('preferences-changed', () => applyCostFooterVisibility());
 
   render();
 }
@@ -126,7 +127,21 @@ function initResizeHandle(): void {
   });
 }
 
+function applyCostFooterVisibility(): void {
+  const visible = appState.preferences.sidebarViews?.costFooter ?? true;
+  if (!visible) {
+    sidebarFooterEl.classList.add('hidden');
+  } else {
+    renderCostFooter();
+  }
+}
+
 function renderCostFooter(): void {
+  const costVisible = appState.preferences.sidebarViews?.costFooter ?? true;
+  if (!costVisible) {
+    sidebarFooterEl.classList.add('hidden');
+    return;
+  }
   const agg = getAggregateCost();
   if (agg.totalCostUsd > 0) {
     sidebarFooterEl.textContent = `Total: $${agg.totalCostUsd.toFixed(4)}`;

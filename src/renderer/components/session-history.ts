@@ -7,6 +7,12 @@ let searchInput: HTMLInputElement;
 let listEl: HTMLElement;
 let collapsed = true;
 
+function applyHistoryVisibility(): void {
+  if (!container) return;
+  const visible = appState.preferences.sidebarViews?.sessionHistory ?? true;
+  container.classList.toggle('hidden', !visible);
+}
+
 export function initSessionHistory(): void {
   container = document.getElementById('session-history')!;
   render();
@@ -14,9 +20,12 @@ export function initSessionHistory(): void {
   appState.on('history-changed', render);
   appState.on('project-changed', render);
   appState.on('state-loaded', render);
+  appState.on('preferences-changed', () => applyHistoryVisibility());
 }
 
 function render(): void {
+  applyHistoryVisibility();
+
   const project = appState.activeProject;
   const history = project ? appState.getSessionHistory(project.id) : [];
 

@@ -10,7 +10,7 @@ const bodyEl = document.getElementById('modal-body')!;
 const btnCancel = document.getElementById('modal-cancel')!;
 const btnConfirm = document.getElementById('modal-confirm')!;
 
-type Section = 'general' | 'shortcuts' | 'about';
+type Section = 'general' | 'sidebar' | 'shortcuts' | 'about';
 
 export function showPreferencesModal(): void {
   titleEl.textContent = 'Preferences';
@@ -27,6 +27,7 @@ export function showPreferencesModal(): void {
 
   const sections: { id: Section; label: string }[] = [
     { id: 'general', label: 'General' },
+    { id: 'sidebar', label: 'Sidebar' },
     { id: 'shortcuts', label: 'Shortcuts' },
     { id: 'about', label: 'About' },
   ];
@@ -52,6 +53,7 @@ export function showPreferencesModal(): void {
   // Build section content
   let currentSection: Section = 'general';
   let soundCheckbox: HTMLInputElement | null = null;
+  let sidebarCheckboxes: { configSections: HTMLInputElement; gitPanel: HTMLInputElement; sessionHistory: HTMLInputElement; costFooter: HTMLInputElement } | null = null;
   let activeRecorder: { cleanup: () => void } | null = null;
 
   function cleanupRecorder() {
@@ -87,6 +89,36 @@ export function showPreferencesModal(): void {
       row.appendChild(label);
       row.appendChild(soundCheckbox);
       content.appendChild(row);
+
+    } else if (section === 'sidebar') {
+      const views = appState.preferences.sidebarViews ?? { configSections: true, gitPanel: true, sessionHistory: true, costFooter: true };
+      const toggles: { key: keyof typeof views; label: string }[] = [
+        { key: 'configSections', label: 'Config Sections (MCP Servers, Agents, Skills, Commands)' },
+        { key: 'gitPanel', label: 'Git Panel' },
+        { key: 'sessionHistory', label: 'Session History' },
+        { key: 'costFooter', label: 'Cost Footer' },
+      ];
+
+      const checkboxes: Record<string, HTMLInputElement> = {};
+      for (const toggle of toggles) {
+        const row = document.createElement('div');
+        row.className = 'modal-toggle-field';
+
+        const label = document.createElement('label');
+        label.htmlFor = `pref-sidebar-${toggle.key}`;
+        label.textContent = toggle.label;
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.id = `pref-sidebar-${toggle.key}`;
+        cb.checked = views[toggle.key];
+
+        row.appendChild(label);
+        row.appendChild(cb);
+        content.appendChild(row);
+        checkboxes[toggle.key] = cb;
+      }
+      sidebarCheckboxes = checkboxes as typeof sidebarCheckboxes;
 
     } else if (section === 'shortcuts') {
       renderShortcutsSection(content);
@@ -263,6 +295,14 @@ export function showPreferencesModal(): void {
   const save = () => {
     if (soundCheckbox) {
       appState.setPreference('soundOnSessionWaiting', soundCheckbox.checked);
+    }
+    if (sidebarCheckboxes) {
+      appState.setPreference('sidebarViews', {
+        configSections: sidebarCheckboxes.configSections.checked,
+        gitPanel: sidebarCheckboxes.gitPanel.checked,
+        sessionHistory: sidebarCheckboxes.sessionHistory.checked,
+        costFooter: sidebarCheckboxes.costFooter.checked,
+      });
     }
   };
 

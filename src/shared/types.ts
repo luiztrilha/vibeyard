@@ -99,6 +99,12 @@ export interface Preferences {
   soundOnSessionWaiting: boolean;
   debugMode: boolean;
   keybindings?: Record<string, string>;
+  sidebarViews?: {
+    configSections: boolean;
+    gitPanel: boolean;
+    sessionHistory: boolean;
+    costFooter: boolean;
+  };
 }
 
 export interface PersistedState {

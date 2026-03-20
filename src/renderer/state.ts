@@ -25,7 +25,11 @@ type EventType =
 
 type EventCallback = (data?: unknown) => void;
 
-const defaultPreferences: Preferences = { soundOnSessionWaiting: false, debugMode: false };
+const defaultPreferences: Preferences = {
+  soundOnSessionWaiting: false,
+  debugMode: false,
+  sidebarViews: { configSections: true, gitPanel: true, sessionHistory: true, costFooter: true },
+};
 
 class AppState {
   private state: PersistedState = { version: 1, projects: [], activeProjectId: null, preferences: { ...defaultPreferences } };
