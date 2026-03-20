@@ -887,8 +887,8 @@ body.debug-panel-open #app {
 
 /* Preferences layout */
 #modal.modal-wide {
-  min-width: 500px;
-  max-width: 580px;
+  min-width: 600px;
+  max-width: 700px;
 }
 
 .preferences-layout {
