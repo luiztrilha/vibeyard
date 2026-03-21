@@ -1476,7 +1476,7 @@ body.debug-panel-open #app {
 }
 
 .help-visual {
-  width: 100px;
+  width: 160px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
