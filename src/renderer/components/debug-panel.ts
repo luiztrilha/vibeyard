@@ -1,4 +1,5 @@
 import { stripAnsi } from '../ansi';
+import { fitAllVisible } from './terminal-pane.js';
 
 interface DebugEvent {
   timestamp: number;
@@ -213,6 +214,7 @@ export function setDebugVisible(show: boolean): void {
       countInterval = null;
     }
   }
+  requestAnimationFrame(fitAllVisible);
 }
 
 export function toggleDebugPanel(): void {

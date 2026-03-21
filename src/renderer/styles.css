@@ -13,6 +13,7 @@
   --tab-inactive: #0d1025;
   --pane-focus: #e94560;
   --pane-unfocus: #2a2a4a;
+  --debug-panel-height: 300px;
 }
 
 * {
@@ -1278,7 +1279,6 @@ body.debug-panel-open #app {
 
 /* Debug panel */
 #debug-panel {
-  --debug-panel-height: 300px;
   position: fixed;
   bottom: 0;
   left: 0;
