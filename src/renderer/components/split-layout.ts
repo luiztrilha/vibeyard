@@ -164,6 +164,23 @@ export function renderLayout(): void {
   requestAnimationFrame(fitAllVisible);
 }
 
+/** Attach and show a non-CLI session pane (file-reader, diff-viewer, mcp-inspector). */
+function attachNonCliPane(session: { id: string; type?: string; fileReaderLine?: number }, target: HTMLElement, inSplit: boolean): void {
+  if (session.type === 'file-reader') {
+    attachFileReaderToContainer(session.id, target);
+    showFileReaderPane(session.id, inSplit);
+    if (session.fileReaderLine) {
+      setFileReaderLine(session.id, session.fileReaderLine);
+    }
+  } else if (session.type === 'diff-viewer') {
+    attachFileViewerToContainer(session.id, target);
+    showFileViewerPane(session.id, inSplit);
+  } else if (session.type === 'mcp-inspector') {
+    attachInspectorToContainer(session.id, target);
+    showInspectorPane(session.id, inSplit);
+  }
+}
+
 function renderTabMode(project: ProjectRecord): void {
   container.className = '';
   container.style.gridTemplateColumns = '';
@@ -173,22 +190,8 @@ function renderTabMode(project: ProjectRecord): void {
   if (!activeId) return;
 
   const activeSession = project.sessions.find(s => s.id === activeId);
-  if (activeSession?.type === 'file-reader') {
-    attachFileReaderToContainer(activeId, container);
-    showFileReaderPane(activeId, false);
-    if (activeSession.fileReaderLine) {
-      setFileReaderLine(activeId, activeSession.fileReaderLine);
-    }
-    return;
-  }
-  if (activeSession?.type === 'diff-viewer') {
-    attachFileViewerToContainer(activeId, container);
-    showFileViewerPane(activeId, false);
-    return;
-  }
-  if (activeSession?.type === 'mcp-inspector') {
-    attachInspectorToContainer(activeId, container);
-    showInspectorPane(activeId, false);
+  if (activeSession?.type && activeSession.type !== 'claude') {
+    attachNonCliPane(activeSession, container, false);
     return;
   }
 
@@ -196,7 +199,6 @@ function renderTabMode(project: ProjectRecord): void {
   showPane(activeId, false);
   setFocused(activeId);
 
-  // Ensure spawned
   const instance = getTerminalInstance(activeId);
   if (instance && !instance.spawned && !instance.exited) {
     requestAnimationFrame(() => {
@@ -207,29 +209,15 @@ function renderTabMode(project: ProjectRecord): void {
 }
 
 /** Attach, show, and ensure-spawn for each pane in the list. */
-function showPanes(project: ProjectRecord): void {
+function showPanes(project: ProjectRecord, target: HTMLElement = container): void {
   for (const paneId of project.layout.splitPanes) {
     const session = project.sessions.find(s => s.id === paneId);
-    if (session?.type === 'file-reader') {
-      attachFileReaderToContainer(paneId, container);
-      showFileReaderPane(paneId, true);
-      if (session.fileReaderLine) {
-        setFileReaderLine(paneId, session.fileReaderLine);
-      }
-      continue;
-    }
-    if (session?.type === 'diff-viewer') {
-      attachFileViewerToContainer(paneId, container);
-      showFileViewerPane(paneId, true);
-      continue;
-    }
-    if (session?.type === 'mcp-inspector') {
-      attachInspectorToContainer(paneId, container);
-      showInspectorPane(paneId, true);
+    if (session?.type && session.type !== 'claude') {
+      attachNonCliPane(session, target, true);
       continue;
     }
 
-    attachToContainer(paneId, container);
+    attachToContainer(paneId, target);
     showPane(paneId, true);
 
     const instance = getTerminalInstance(paneId);
@@ -260,11 +248,30 @@ function renderSwarmMode(project: ProjectRecord): void {
   const cols = Math.ceil(Math.sqrt(count));
   const rows = Math.ceil(count / cols);
 
-  container.className = 'swarm-mode';
-  container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-  container.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+  container.querySelectorAll('.swarm-grid-wrapper').forEach(el => el.remove());
 
-  showPanes(project);
+  const activeSession = project.sessions.find(s => s.id === project.activeSessionId);
+  const isNonCliActive = activeSession?.type && activeSession.type !== 'claude';
+
+  container.className = 'swarm-mode';
+
+  if (isNonCliActive) {
+    container.style.gridTemplateColumns = '1fr 1fr';
+    container.style.gridTemplateRows = '1fr';
+
+    const gridWrapper = document.createElement('div');
+    gridWrapper.className = 'swarm-grid-wrapper';
+    gridWrapper.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    gridWrapper.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+    container.appendChild(gridWrapper);
+
+    showPanes(project, gridWrapper);
+    attachNonCliPane(activeSession, container, true);
+  } else {
+    container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    container.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+    showPanes(project);
+  }
 
   updateSwarmPaneStyles(project);
   focusActivePane(project);

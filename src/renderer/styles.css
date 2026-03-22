@@ -464,6 +464,12 @@ body.debug-panel-open #app {
   gap: 2px;
 }
 
+.swarm-grid-wrapper {
+  display: grid;
+  gap: 2px;
+  overflow: hidden;
+}
+
 .terminal-pane.swarm-dimmed::after {
   content: '';
   position: absolute;
