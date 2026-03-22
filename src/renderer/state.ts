@@ -395,6 +395,10 @@ class AppState {
     };
     project.sessions.push(session);
     project.activeSessionId = session.id;
+    // Auto-add to swarm if in swarm mode
+    if (project.layout.mode === 'swarm') {
+      project.layout.splitPanes.push(session.id);
+    }
     this.persist();
     this.emit('session-added', { projectId, session });
     this.emit('session-changed');

@@ -1220,6 +1220,37 @@ describe('resumeFromHistory()', () => {
     appState.resumeFromHistory(project.id, archived.id);
     expect(mockSave).toHaveBeenCalled();
   });
+
+  it('adds resumed session to splitPanes when in swarm mode', () => {
+    const project = addProject();
+    const session = appState.addSession(project.id, 'S1')!;
+    appState.updateSessionCliId(project.id, session.id, 'cli-swarm');
+    appState.removeSession(project.id, session.id);
+
+    // Switch to swarm mode
+    project.layout.mode = 'swarm';
+    project.layout.splitPanes = [];
+
+    const archived = appState.getSessionHistory(project.id)[0];
+    const resumed = appState.resumeFromHistory(project.id, archived.id)!;
+    expect(resumed).toBeDefined();
+    expect(project.layout.splitPanes).toContain(resumed.id);
+  });
+
+  it('does not add to splitPanes when in tabs mode', () => {
+    const project = addProject();
+    const session = appState.addSession(project.id, 'S1')!;
+    appState.updateSessionCliId(project.id, session.id, 'cli-tabs');
+    appState.removeSession(project.id, session.id);
+
+    project.layout.mode = 'tabs';
+    project.layout.splitPanes = [];
+
+    const archived = appState.getSessionHistory(project.id)[0];
+    const resumed = appState.resumeFromHistory(project.id, archived.id)!;
+    expect(resumed).toBeDefined();
+    expect(project.layout.splitPanes).toHaveLength(0);
+  });
 });
 
 describe('renameSession() history sync', () => {
