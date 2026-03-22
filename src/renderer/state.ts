@@ -5,6 +5,8 @@ import { restoreContext } from './session-context.js';
 
 export type { SessionRecord, ProjectRecord, Preferences, PersistedState, ArchivedSession } from '../shared/types.js';
 
+export const MAX_SESSION_NAME_LENGTH = 60;
+
 declare global {
   interface Window {
     claudeIde: ClaudeIdeApi;
@@ -467,13 +469,13 @@ class AppState {
     if (!project) return;
     const session = project.sessions.find((s) => s.id === sessionId);
     if (!session) return;
-    session.name = name;
+    session.name = name.slice(0, MAX_SESSION_NAME_LENGTH);
     if (userRenamed) session.userRenamed = true;
     // Keep history entry in sync if this session was resumed from history
     if (session.cliSessionId && project.sessionHistory) {
       const historyEntry = project.sessionHistory.find((a) => a.cliSessionId === session.cliSessionId);
       if (historyEntry) {
-        historyEntry.name = name;
+        historyEntry.name = session.name;
         this.emit('history-changed', project.id);
       }
     }

@@ -1,4 +1,4 @@
-import { appState, type ProjectRecord, type SessionRecord } from '../state.js';
+import { appState, MAX_SESSION_NAME_LENGTH, type ProjectRecord, type SessionRecord } from '../state.js';
 import { showModal, closeModal, FieldDef } from './modal.js';
 import { onChange as onStatusChange, getStatus, type SessionStatus } from '../session-activity.js';
 import { onChange as onGitStatusChange, getGitStatus, type GitStatus } from '../git-status.js';
@@ -80,6 +80,7 @@ function startRename(tab: HTMLElement, project: ProjectRecord, session: SessionR
   if (nameSpan.querySelector('input')) return;
 
   const input = document.createElement('input');
+  input.maxLength = MAX_SESSION_NAME_LENGTH;
   input.value = session.name;
   nameSpan.textContent = '';
   nameSpan.appendChild(input);

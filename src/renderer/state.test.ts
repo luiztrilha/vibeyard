@@ -23,7 +23,7 @@ vi.mock('./session-context.js', () => ({
   restoreContext: vi.fn(),
 }));
 
-import { appState, _resetForTesting } from './state';
+import { appState, _resetForTesting, MAX_SESSION_NAME_LENGTH } from './state';
 import { getCost, restoreCost } from './session-cost.js';
 import { restoreContext } from './session-context.js';
 
@@ -562,6 +562,14 @@ describe('renameSession()', () => {
     const session = appState.addSession(project.id, 'Old')!;
     appState.renameSession(project.id, session.id, 'Auto');
     expect(appState.activeSession!.userRenamed).toBeUndefined();
+  });
+
+  it('truncates name exceeding MAX_SESSION_NAME_LENGTH', () => {
+    const project = addProject();
+    const session = appState.addSession(project.id, 'Old')!;
+    const longName = 'A'.repeat(MAX_SESSION_NAME_LENGTH + 40);
+    appState.renameSession(project.id, session.id, longName);
+    expect(appState.activeSession!.name).toBe('A'.repeat(MAX_SESSION_NAME_LENGTH));
   });
 });
 
