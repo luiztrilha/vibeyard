@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  A terminal-centric IDE for AI-powered CLI tools. Manage multiple sessions, track costs, and work with split panes — all from a keyboard-driven Electron app.
+  Running AI coding agents in a bare terminal gets messy fast. Vibeyard is a lightweight IDE and the best setup for coding agents — multi-session management, split panes, swarm mode for running agents in parallel, cost tracking, context monitoring, and session resume — built around Claude Code with support for more AI CLIs coming.
 </p>
 
 ## Features
@@ -48,10 +48,7 @@
 
 1. Download the `.dmg` from [GitHub Releases](https://github.com/elirantutia/vibeyard/releases)
 2. Open the `.dmg` and drag **Vibeyard** to your Applications folder
-3. Since the app is unsigned, macOS Gatekeeper will block the first launch. To open it, run:
-   ```bash
-   xattr -cr /Applications/Vibeyard.app
-   ```
+3. Launch **Vibeyard** — the app is signed and notarized by Apple
 
 ### Build from Source
 
