@@ -857,6 +857,7 @@ describe('archiveSession via removeSession()', () => {
     mockCostData();
     const project = addProject();
     const session = appState.addSession(project.id, 'S1')!;
+    appState.updateSessionCliId(project.id, session.id, 'cli-cost');
     appState.removeSession(project.id, session.id);
     const history = appState.getSessionHistory(project.id);
     expect(history[0].cost).not.toBeNull();
@@ -869,9 +870,29 @@ describe('archiveSession via removeSession()', () => {
   it('archives with null cost when no cost data', () => {
     const project = addProject();
     const session = appState.addSession(project.id, 'S1')!;
+    appState.updateSessionCliId(project.id, session.id, 'cli-no-cost');
     appState.removeSession(project.id, session.id);
     const history = appState.getSessionHistory(project.id);
     expect(history[0].cost).toBeNull();
+  });
+
+  it('does NOT archive empty sessions (no cliSessionId, no cost)', () => {
+    const project = addProject();
+    const session = appState.addSession(project.id, 'Empty')!;
+    appState.removeSession(project.id, session.id);
+    expect(appState.getSessionHistory(project.id)).toHaveLength(0);
+  });
+
+  it('archives session with cost data but no cliSessionId', () => {
+    mockCostData();
+    const project = addProject();
+    const session = appState.addSession(project.id, 'CostOnly')!;
+    appState.removeSession(project.id, session.id);
+    const history = appState.getSessionHistory(project.id);
+    expect(history).toHaveLength(1);
+    expect(history[0].cliSessionId).toBeNull();
+    expect(history[0].cost).not.toBeNull();
+    expect(history[0].cost!.totalCostUsd).toBe(0.42);
   });
 
   it('does NOT archive diff-viewer sessions', () => {
@@ -954,6 +975,7 @@ describe('archiveSession via removeSession()', () => {
     }
 
     const session = appState.addSession(project.id, 'New')!;
+    appState.updateSessionCliId(project.id, session.id, 'cli-new');
     appState.removeSession(project.id, session.id);
     const history = appState.getSessionHistory(project.id);
     expect(history).toHaveLength(500);
@@ -965,6 +987,7 @@ describe('archiveSession via removeSession()', () => {
   it('emits history-changed on archive', () => {
     const project = addProject();
     const session = appState.addSession(project.id, 'S1')!;
+    appState.updateSessionCliId(project.id, session.id, 'cli-emit');
     const cb = vi.fn();
     appState.on('history-changed', cb);
     appState.removeSession(project.id, session.id);
@@ -972,7 +995,8 @@ describe('archiveSession via removeSession()', () => {
   });
 
   it('bulk removeAllSessions archives each', () => {
-    const { project } = addProjectWithSessions(3);
+    const { project, sessions } = addProjectWithSessions(3);
+    sessions.forEach((s, i) => appState.updateSessionCliId(project.id, s.id, `cli-bulk-${i}`));
     appState.removeAllSessions(project.id);
     expect(appState.getSessionHistory(project.id)).toHaveLength(3);
   });
@@ -988,6 +1012,7 @@ describe('archiveSession via removeSession()', () => {
   it('preserves existing history when sessionHistoryEnabled is disabled', () => {
     const project = addProject();
     const session1 = appState.addSession(project.id, 'S1')!;
+    appState.updateSessionCliId(project.id, session1.id, 'cli-preserve');
     appState.removeSession(project.id, session1.id);
     expect(appState.getSessionHistory(project.id)).toHaveLength(1);
 
@@ -1008,6 +1033,7 @@ describe('archiveSession via removeSession()', () => {
 
     appState.setPreference('sessionHistoryEnabled', true);
     const session2 = appState.addSession(project.id, 'S2')!;
+    appState.updateSessionCliId(project.id, session2.id, 'cli-resume-pref');
     appState.removeSession(project.id, session2.id);
     expect(appState.getSessionHistory(project.id)).toHaveLength(1);
     expect(appState.getSessionHistory(project.id)[0].name).toBe('S2');
@@ -1030,6 +1056,8 @@ describe('removeHistoryEntry()', () => {
     const project = addProject();
     const s1 = appState.addSession(project.id, 'S1')!;
     const s2 = appState.addSession(project.id, 'S2')!;
+    appState.updateSessionCliId(project.id, s1.id, 'cli-s1');
+    appState.updateSessionCliId(project.id, s2.id, 'cli-s2');
     appState.removeSession(project.id, s1.id);
     appState.removeSession(project.id, s2.id);
     expect(appState.getSessionHistory(project.id)).toHaveLength(2);
@@ -1048,6 +1076,7 @@ describe('removeHistoryEntry()', () => {
   it('no-op for nonexistent entry id', () => {
     const project = addProject();
     const session = appState.addSession(project.id, 'S1')!;
+    appState.updateSessionCliId(project.id, session.id, 'cli-noop');
     appState.removeSession(project.id, session.id);
     appState.removeHistoryEntry(project.id, 'nonexistent');
     expect(appState.getSessionHistory(project.id)).toHaveLength(1);
@@ -1056,6 +1085,7 @@ describe('removeHistoryEntry()', () => {
   it('emits history-changed', () => {
     const project = addProject();
     const session = appState.addSession(project.id, 'S1')!;
+    appState.updateSessionCliId(project.id, session.id, 'cli-emit-hist');
     appState.removeSession(project.id, session.id);
     const cb = vi.fn();
     appState.on('history-changed', cb);
@@ -1066,6 +1096,7 @@ describe('removeHistoryEntry()', () => {
   it('persists after removal', () => {
     const project = addProject();
     const session = appState.addSession(project.id, 'S1')!;
+    appState.updateSessionCliId(project.id, session.id, 'cli-persist');
     appState.removeSession(project.id, session.id);
     mockSave.mockClear();
     appState.removeHistoryEntry(project.id, session.id);
@@ -1075,7 +1106,8 @@ describe('removeHistoryEntry()', () => {
 
 describe('clearSessionHistory()', () => {
   it('clears all history for a project', () => {
-    const { project } = addProjectWithSessions(3);
+    const { project, sessions } = addProjectWithSessions(3);
+    sessions.forEach((s, i) => appState.updateSessionCliId(project.id, s.id, `cli-clear-${i}`));
     appState.removeAllSessions(project.id);
     expect(appState.getSessionHistory(project.id)).toHaveLength(3);
     appState.clearSessionHistory(project.id);
@@ -1085,6 +1117,7 @@ describe('clearSessionHistory()', () => {
   it('emits history-changed', () => {
     const project = addProject();
     const session = appState.addSession(project.id, 'S1')!;
+    appState.updateSessionCliId(project.id, session.id, 'cli-clear-emit');
     appState.removeSession(project.id, session.id);
     const cb = vi.fn();
     appState.on('history-changed', cb);
@@ -1095,6 +1128,7 @@ describe('clearSessionHistory()', () => {
   it('persists', () => {
     const project = addProject();
     const session = appState.addSession(project.id, 'S1')!;
+    appState.updateSessionCliId(project.id, session.id, 'cli-clear-persist');
     appState.removeSession(project.id, session.id);
     mockSave.mockClear();
     appState.clearSessionHistory(project.id);
@@ -1162,6 +1196,7 @@ describe('resumeFromHistory()', () => {
   });
 
   it('returns undefined when archived session has no cliSessionId', () => {
+    mockCostData(); // need cost data so session gets archived despite no cliSessionId
     const project = addProject();
     const session = appState.addSession(project.id, 'S1')!;
     // Don't set cliSessionId

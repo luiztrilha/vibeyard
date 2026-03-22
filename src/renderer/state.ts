@@ -292,7 +292,10 @@ class AppState {
     // Archive CLI sessions before removing (cost data must be captured before session-removed triggers destroyTerminal)
     const session = project.sessions.find((s) => s.id === sessionId);
     if (session && (!session.type || session.type === 'claude') && this.state.preferences.sessionHistoryEnabled) {
-      this.archiveSession(project, session);
+      // Skip archiving empty sessions (no CLI activity)
+      if (session.cliSessionId || getCost(session.id) !== null) {
+        this.archiveSession(project, session);
+      }
     }
 
     const closingIndex = project.sessions.findIndex((s) => s.id === sessionId);
