@@ -209,10 +209,29 @@ function showTabContextMenu(x: number, y: number, project: ProjectRecord, sessio
   const moveSeparator = document.createElement('div');
   moveSeparator.className = 'tab-context-menu-separator';
 
+  const sessionSeparator = document.createElement('div');
+  sessionSeparator.className = 'tab-context-menu-separator';
+
+  const cliSessionId = session.cliSessionId;
+  const hasCliSession = !!cliSessionId;
+
+  const copySessionIdItem = document.createElement('div');
+  copySessionIdItem.className = 'tab-context-menu-item' + (!hasCliSession ? ' disabled' : '');
+  copySessionIdItem.textContent = 'Copy Session ID';
+  if (hasCliSession) {
+    copySessionIdItem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideTabContextMenu();
+      navigator.clipboard.writeText(cliSessionId);
+    });
+  }
+
   menu.appendChild(renameItem);
   menu.appendChild(moveLeftItem);
   menu.appendChild(moveRightItem);
   menu.appendChild(moveSeparator);
+  menu.appendChild(copySessionIdItem);
+  menu.appendChild(sessionSeparator);
   menu.appendChild(closeItem);
   menu.appendChild(separator);
   menu.appendChild(closeAllItem);
