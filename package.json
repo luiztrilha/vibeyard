@@ -21,6 +21,10 @@
     "ai",
     "developer-tools"
   ],
+  "files": [
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=24"
   },
