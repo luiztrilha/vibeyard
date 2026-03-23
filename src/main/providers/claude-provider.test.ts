@@ -118,11 +118,6 @@ describe('buildEnv', () => {
     expect(env.CLAUDE_IDE_SESSION_ID).toBe('sess-123');
   });
 
-  it('does not set CLAUDE_CODE_STATUSLINE (deprecated)', () => {
-    const env = provider.buildEnv('sess-123', {});
-    expect(env.CLAUDE_CODE_STATUSLINE).toBeUndefined();
-  });
-
   it('sets PATH to the augmented PATH', () => {
     const env = provider.buildEnv('sess-123', {});
     expect(env.PATH).toBe('/usr/local/bin:/usr/bin');

@@ -61,7 +61,7 @@ CLI-specific behavior is encapsulated behind a `CliProvider` interface (`src/mai
 - `state.ts` — Reactive AppState singleton; debounced persistence (300ms) to `~/.vibeyard/state.json`
 - `split-layout.ts` — Manages tab mode (single terminal) vs split mode (side-by-side)
 - `session-activity.ts` — Tracks working/waiting/idle status with debounced transitions
-- `session-cost.ts` — Structured cost tracking via Claude CLI status line (`CLAUDE_CODE_STATUSLINE` env var), with regex fallback for older CLI versions. Provides per-session and aggregate cost data (USD, tokens, cache, duration)
+- `session-cost.ts` — Structured cost tracking via Claude CLI status line (`statusLine` setting), with regex fallback for older CLI versions. Provides per-session and aggregate cost data (USD, tokens, cache, duration)
 
 ### State Persistence
 
