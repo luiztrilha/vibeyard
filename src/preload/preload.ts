@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { CostData, ProviderId, CliProviderMeta, StatsCache, ReadinessResult, ToolFailureData, SettingsWarningData, SettingsValidationResult } from '../shared/types';
+import type { CostData, ProviderId, CliProviderMeta, StatsCache, ReadinessResult, ToolFailureData, SettingsWarningData, SettingsValidationResult, StatusLineConflictData } from '../shared/types';
 
 export type { CostData } from '../shared/types';
 
@@ -85,6 +85,8 @@ export interface VibeyardApi {
   };
   settings: {
     onWarning(callback: (data: SettingsWarningData) => void): () => void;
+    onConflictDialog(callback: (data: StatusLineConflictData) => void): () => void;
+    respondConflictDialog(choice: 'replace' | 'keep'): void;
     reinstall(providerId?: ProviderId): Promise<{ success: boolean }>;
     validate(providerId?: ProviderId): Promise<SettingsValidationResult>;
   };
@@ -205,6 +207,8 @@ const api: VibeyardApi = {
   },
   settings: {
     onWarning: (cb) => onChannel('settings:warning', (data) => cb(data as SettingsWarningData)),
+    onConflictDialog: (cb) => onChannel('settings:showConflictDialog', (data) => cb(data as StatusLineConflictData)),
+    respondConflictDialog: (choice) => ipcRenderer.send('settings:conflictDialogResponse', choice),
     reinstall: (providerId) => ipcRenderer.invoke('settings:reinstall', providerId || 'claude'),
     validate: (providerId) => ipcRenderer.invoke('settings:validate', providerId || 'claude'),
   },

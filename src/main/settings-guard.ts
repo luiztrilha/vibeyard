@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { homedir } from 'os';
-import { dialog, BrowserWindow } from 'electron';
+import { ipcMain, BrowserWindow } from 'electron';
 import { getStatusLineScriptPath } from './hook-status';
 import { HOOK_MARKER, installHooksOnly, installStatusLine } from './claude-cli';
 import { readJsonSafe } from './fs-utils';
@@ -86,33 +86,34 @@ export async function guardedInstall(win: BrowserWindow | null): Promise<void> {
     return;
   }
 
-  // No prior decision — ask the user
-  const foreignCmd = validation.foreignStatusLineCommand ?? '(unknown)';
-  const options: Electron.MessageBoxOptions = {
-    type: 'warning',
-    title: 'Vibeyard \u2014 Settings Conflict',
-    message: 'Claude Code already has a statusLine setting configured.',
-    detail:
-      `Vibeyard needs to set its own statusLine for cost tracking and context window monitoring.\n\n` +
-      `Current statusLine:\n${foreignCmd}\n\n` +
-      `If you keep the existing setting, cost tracking and context window features will be unavailable in Vibeyard.`,
-    buttons: ['Replace', 'Keep Existing'],
-    defaultId: 1,
-    cancelId: 1,
-  };
+  // No prior decision — ask the user via in-app modal
+  if (!win) return;
 
-  let response: number;
-  if (win) {
-    const result = await dialog.showMessageBox(win, options);
-    response = result.response;
-  } else {
-    response = dialog.showMessageBoxSync(options);
+  // Wait for renderer to be ready before sending IPC
+  if (win.webContents.isLoading()) {
+    await new Promise<void>(resolve => win.webContents.once('did-finish-load', resolve));
   }
 
-  state.preferences.statusLineConsent = response === 0 ? 'granted' : 'declined';
+  const foreignCmd = validation.foreignStatusLineCommand ?? '(unknown)';
+  const channel = 'settings:conflictDialogResponse';
+  const choice = await new Promise<'replace' | 'keep'>((resolve) => {
+    const onResponse = (_event: Electron.IpcMainEvent, c: string) => {
+      win.removeListener('closed', onClose);
+      resolve(c === 'replace' ? 'replace' : 'keep');
+    };
+    const onClose = () => {
+      ipcMain.removeListener(channel, onResponse);
+      resolve('keep');
+    };
+    ipcMain.once(channel, onResponse);
+    win.once('closed', onClose);
+    win.webContents.send('settings:showConflictDialog', { foreignCommand: foreignCmd });
+  });
+
+  state.preferences.statusLineConsent = choice === 'replace' ? 'granted' : 'declined';
   saveState(state);
 
-  if (response === 0) {
+  if (choice === 'replace') {
     installStatusLine();
   }
 }

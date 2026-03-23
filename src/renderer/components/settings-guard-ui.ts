@@ -1,4 +1,5 @@
 import { showAlertBanner, removeAlertBanner } from './alert-banner.js';
+import { showStatusLineConflictModal } from './statusline-conflict-modal.js';
 import type { SettingsWarningData } from '../../shared/types';
 
 let initialized = false;
@@ -6,6 +7,12 @@ let initialized = false;
 export function initSettingsGuard(): void {
   if (initialized) return;
   initialized = true;
+
+  window.vibeyard.settings.onConflictDialog((data) => {
+    showStatusLineConflictModal(data.foreignCommand).then((choice) => {
+      window.vibeyard.settings.respondConflictDialog(choice);
+    });
+  });
 
   window.vibeyard.settings.onWarning((data: SettingsWarningData) => {
     const hasStatusLineIssue = data.statusLine !== 'vibeyard';

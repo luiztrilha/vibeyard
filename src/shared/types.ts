@@ -165,6 +165,10 @@ export interface SettingsWarningData {
   hooks: SettingsValidationResult['hooks'];
 }
 
+export interface StatusLineConflictData {
+  foreignCommand: string;
+}
+
 export interface PersistedState {
   version: 1;
   projects: ProjectRecord[];
