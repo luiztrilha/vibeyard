@@ -1,4 +1,5 @@
 import { appState } from '../state.js';
+import { showMcpAddModal } from './mcp-add-modal.js';
 import type { ClaudeConfig, McpServer, Agent, Skill, Command } from '../types.js';
 
 const collapsed: Record<string, boolean> = {};
@@ -7,7 +8,7 @@ function scopeBadge(scope: 'user' | 'project'): string {
   return `<span class="scope-badge ${scope}">${scope}</span>`;
 }
 
-function renderSection(id: string, title: string, items: HTMLElement[], count: number): HTMLElement {
+function renderSection(id: string, title: string, items: HTMLElement[], count: number, onAdd?: () => void): HTMLElement {
   const section = document.createElement('div');
   section.className = 'config-section';
 
@@ -16,6 +17,15 @@ function renderSection(id: string, title: string, items: HTMLElement[], count: n
   const header = document.createElement('div');
   header.className = 'config-section-header';
   header.innerHTML = `<span class="config-section-toggle ${isCollapsed ? 'collapsed' : ''}">&#x25BC;</span>${title}<span class="config-section-count">${count}</span>`;
+
+  if (onAdd) {
+    const addBtn = document.createElement('button');
+    addBtn.className = 'config-section-add-btn';
+    addBtn.textContent = '+';
+    addBtn.title = `Add ${title.replace(/s$/, '')}`;
+    addBtn.addEventListener('click', (e) => { e.stopPropagation(); onAdd(); });
+    header.appendChild(addBtn);
+  }
 
   const body = document.createElement('div');
   body.className = `config-section-body${isCollapsed ? ' hidden' : ''}`;
@@ -29,7 +39,8 @@ function renderSection(id: string, title: string, items: HTMLElement[], count: n
     items.forEach(el => body.appendChild(el));
   }
 
-  header.addEventListener('click', () => {
+  header.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('.config-section-add-btn')) return;
     collapsed[id] = !collapsed[id];
     const toggle = header.querySelector('.config-section-toggle')!;
     toggle.classList.toggle('collapsed');
@@ -52,7 +63,24 @@ function mcpItem(server: McpServer): HTMLElement {
   const el = document.createElement('div');
   el.className = 'config-item config-item-clickable';
   el.innerHTML = `<span class="config-item-name">${esc(server.name)}</span><span class="config-item-detail">${esc(server.status)}</span>${scopeBadge(server.scope)}`;
-  el.addEventListener('click', () => openConfigFile(server.filePath));
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'config-item-remove-btn';
+  removeBtn.textContent = '\u00d7';
+  removeBtn.title = 'Remove server';
+  removeBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!confirm(`Remove MCP server "${server.name}"?`)) return;
+    const projectPath = appState.activeProject?.path;
+    await window.vibeyard.mcp.removeServer(server.name, server.filePath, server.scope, projectPath);
+    refresh();
+  });
+  el.appendChild(removeBtn);
+
+  el.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('.config-item-remove-btn')) return;
+    openConfigFile(server.filePath);
+  });
   return el;
 }
 
@@ -122,6 +150,7 @@ async function refresh(): Promise<void> {
     'MCP Servers',
     config.mcpServers.map(mcpItem),
     config.mcpServers.length,
+    () => showMcpAddModal(() => refresh()),
   ));
 
   container.appendChild(renderSection(

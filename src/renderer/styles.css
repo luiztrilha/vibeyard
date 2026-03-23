@@ -723,7 +723,7 @@ body.debug-panel-open #app {
 }
 
 /* Modal */
-#modal-overlay {
+#modal-overlay, .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -736,11 +736,11 @@ body.debug-panel-open #app {
   z-index: 100;
 }
 
-#modal-overlay.hidden {
+#modal-overlay.hidden, .modal-overlay.hidden {
   display: none;
 }
 
-#modal {
+#modal, .modal-box {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -750,13 +750,13 @@ body.debug-panel-open #app {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
-#modal-title {
+#modal-title, .modal-title {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 16px;
 }
 
-#modal-body {
+#modal-body, .modal-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -846,7 +846,7 @@ body.debug-panel-open #app {
   margin-top: 4px;
 }
 
-#modal-actions {
+#modal-actions, .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
@@ -927,6 +927,29 @@ body.debug-panel-open #app {
   margin-left: auto;
 }
 
+.config-section-add-btn {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin-left: 4px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.config-section-add-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 .config-section-body {
   padding: 0 0 4px;
 }
@@ -976,6 +999,79 @@ body.debug-panel-open #app {
 .scope-badge.project {
   background: rgba(233, 69, 96, 0.15);
   color: var(--accent);
+}
+
+.config-item-remove-btn {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 18px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.config-item:hover .config-item-remove-btn {
+  opacity: 1;
+}
+
+.config-item-remove-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
+.mcp-add-type-row {
+  display: flex;
+  gap: 16px;
+}
+
+.mcp-add-radio {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-bottom: 0;
+}
+
+.mcp-add-radio input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+.mcp-add-box {
+  min-width: 420px;
+  max-width: 500px;
+}
+
+.mcp-add-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcp-add-env-textarea {
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 12px;
+  resize: vertical;
+}
+
+.mcp-add-hint {
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .config-empty {

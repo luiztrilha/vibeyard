@@ -4,6 +4,8 @@ import * as path from 'path';
 import * as os from 'os';
 import { execSync } from 'child_process';
 import { spawnPty, spawnShellPty, writePty, resizePty, killPty, isSilencedExit, getPtyCwd } from './pty-manager';
+import { addMcpServer, removeMcpServer } from './claude-cli';
+import type { McpServerConfig } from './claude-cli';
 import { loadState, saveState, PersistedState } from './store';
 import { startWatching, cleanupSessionStatus } from './hook-status';
 import { getGitStatus, getGitFiles, getGitDiff, getGitWorktrees, gitStageFile, gitUnstageFile, gitDiscardFile } from './git-status';
@@ -303,6 +305,26 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('settings:validate', (_event, providerId: ProviderId = 'claude'): SettingsValidationResult => {
     const provider = getProvider(providerId);
     return provider.validateSettings();
+  });
+
+  ipcMain.handle('mcp:addServer', (_event, name: string, config: McpServerConfig, scope: 'user' | 'project', projectPath?: string) => {
+    try {
+      addMcpServer(name, config, scope, projectPath);
+      return { success: true };
+    } catch (err) {
+      console.error('mcp:addServer failed:', err);
+      return { success: false, error: String(err) };
+    }
+  });
+
+  ipcMain.handle('mcp:removeServer', (_event, name: string, filePath: string, scope: 'user' | 'project', projectPath?: string) => {
+    try {
+      removeMcpServer(name, filePath, scope, projectPath);
+      return { success: true };
+    } catch (err) {
+      console.error('mcp:removeServer failed:', err);
+      return { success: false, error: String(err) };
+    }
   });
 
   registerMcpHandlers();
