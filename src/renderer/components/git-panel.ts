@@ -10,6 +10,91 @@ let collapsed = false;
 let lastCountKey = '';
 let lastFilesKey = '';
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let activeContextMenu: HTMLElement | null = null;
+
+function hideGitContextMenu(): void {
+  if (activeContextMenu) {
+    activeContextMenu.remove();
+    activeContextMenu = null;
+  }
+}
+
+function createMenuItem(label: string, onClick: () => void, disabled = false): HTMLElement {
+  const item = document.createElement('div');
+  item.className = 'tab-context-menu-item' + (disabled ? ' disabled' : '');
+  item.textContent = label;
+  if (!disabled) {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideGitContextMenu();
+      onClick();
+    });
+  }
+  return item;
+}
+
+function createSeparator(): HTMLElement {
+  const sep = document.createElement('div');
+  sep.className = 'tab-context-menu-separator';
+  return sep;
+}
+
+function showGitFileContextMenu(x: number, y: number, entry: GitFileEntry, gitPath: string): void {
+  hideGitContextMenu();
+
+  const menu = document.createElement('div');
+  menu.className = 'tab-context-menu';
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+
+  const afterAction = () => {
+    lastFilesKey = '';
+    scheduleRefresh();
+  };
+
+  if (entry.area === 'staged') {
+    menu.appendChild(createMenuItem('Unstage', async () => {
+      await window.vibeyard.git.unstageFile(gitPath, entry.path);
+      afterAction();
+    }));
+  } else {
+    menu.appendChild(createMenuItem('Stage', async () => {
+      await window.vibeyard.git.stageFile(gitPath, entry.path);
+      afterAction();
+    }));
+  }
+
+  if (entry.area !== 'staged' && entry.area !== 'conflicted') {
+    menu.appendChild(createMenuItem('Discard Changes', async () => {
+      const msg = entry.area === 'untracked'
+        ? `Delete untracked file "${entry.path}"?`
+        : `Discard changes to "${entry.path}"? This cannot be undone.`;
+      if (confirm(msg)) {
+        await window.vibeyard.git.discardFile(gitPath, entry.path, entry.area);
+        afterAction();
+      }
+    }));
+  }
+
+  menu.appendChild(createSeparator());
+
+  menu.appendChild(createMenuItem('Open in Editor', async () => {
+    await window.vibeyard.git.openInEditor(gitPath, entry.path);
+  }));
+
+  menu.appendChild(createMenuItem('Copy Path', () => {
+    navigator.clipboard.writeText(entry.path);
+  }));
+
+  document.body.appendChild(menu);
+  activeContextMenu = menu;
+
+  // Adjust if menu goes off-screen
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) menu.style.left = `${window.innerWidth - rect.width - 4}px`;
+  if (rect.bottom > window.innerHeight) menu.style.top = `${window.innerHeight - rect.height - 4}px`;
+}
+
 
 function esc(s: string): string {
   const d = document.createElement('div');
@@ -243,6 +328,11 @@ async function loadFiles(body: HTMLElement, gitPath: string): Promise<void> {
       item.className = 'config-item config-item-clickable';
       item.innerHTML = `${statusBadge(entry)}<span class="config-item-detail" title="${esc(entry.path)}">${esc(entry.path)}</span>`;
       item.addEventListener('click', () => showFileViewer(entry.path, entry.area, gitPath));
+      item.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showGitFileContextMenu(e.clientX, e.clientY, entry, gitPath);
+      });
       body.appendChild(item);
       rendered++;
     }
@@ -295,6 +385,9 @@ export function toggleGitPanel(): void {
 }
 
 export function initGitPanel(): void {
+  document.addEventListener('click', hideGitContextMenu);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideGitContextMenu(); });
+
   appState.on('project-changed', () => { lastFilesKey = ''; scheduleRefresh(); });
   appState.on('state-loaded', () => { lastFilesKey = ''; scheduleRefresh(); });
 

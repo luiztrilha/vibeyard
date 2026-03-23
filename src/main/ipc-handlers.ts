@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, app, dialog } from 'electron';
+import { ipcMain, BrowserWindow, app, dialog, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -6,11 +6,11 @@ import { execSync } from 'child_process';
 import { spawnPty, spawnShellPty, writePty, resizePty, killPty, isSilencedExit, getPtyCwd } from './pty-manager';
 import { loadState, saveState, PersistedState } from './store';
 import { startWatching, cleanupSessionStatus } from './hook-status';
-import { getGitStatus, getGitFiles, getGitDiff, getGitWorktrees } from './git-status';
+import { getGitStatus, getGitFiles, getGitDiff, getGitWorktrees, gitStageFile, gitUnstageFile, gitDiscardFile } from './git-status';
 import { registerMcpHandlers } from './mcp-ipc-handlers';
 import { checkForUpdates, quitAndInstall } from './auto-updater';
 import { getProvider, getProviderMeta, getAllProviderMetas } from './providers/registry';
-import type { ProviderId } from '../shared/types';
+import type { ProviderId, GitFileEntry } from '../shared/types';
 import { analyzeReadiness } from './readiness/analyzer';
 
 /**
@@ -177,6 +177,17 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('git:getDiff', (_event, projectPath: string, filePath: string, area: string) => getGitDiff(projectPath, filePath, area));
 
   ipcMain.handle('git:getWorktrees', (_event, projectPath: string) => getGitWorktrees(projectPath));
+
+  ipcMain.handle('git:stageFile', (_event, projectPath: string, filePath: string) => gitStageFile(projectPath, filePath));
+
+  ipcMain.handle('git:unstageFile', (_event, projectPath: string, filePath: string) => gitUnstageFile(projectPath, filePath));
+
+  ipcMain.handle('git:discardFile', (_event, projectPath: string, filePath: string, area: string) => gitDiscardFile(projectPath, filePath, area as GitFileEntry['area']));
+
+  ipcMain.handle('git:openInEditor', (_event, projectPath: string, filePath: string) => {
+    const fullPath = path.join(projectPath, filePath);
+    return shell.openPath(fullPath);
+  });
 
   ipcMain.handle('pty:getCwd', (_event, sessionId: string) => getPtyCwd(sessionId));
 

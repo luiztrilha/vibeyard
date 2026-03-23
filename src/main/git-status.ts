@@ -1,5 +1,6 @@
 import { execFile } from 'child_process';
 import * as fs from 'fs';
+import * as path from 'path';
 import type { GitWorktree, GitFileEntry } from '../shared/types';
 
 export type { GitWorktree, GitFileEntry } from '../shared/types';
@@ -90,7 +91,7 @@ export function getGitDiff(cwd: string, filePath: string, area: string): Promise
   return new Promise((resolve) => {
     if (area === 'untracked') {
       // Read file content and format as "all added" diff
-      const fullPath = require('path').join(cwd, filePath);
+      const fullPath = path.join(cwd, filePath);
       try {
         const content = fs.readFileSync(fullPath, 'utf-8');
         const lines = content.split('\n');
@@ -182,6 +183,31 @@ export function getGitFiles(cwd: string): Promise<GitFileEntry[]> {
       }
     );
   });
+}
+
+function execGit(cwd: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile('git', args, { cwd, timeout: 5000 }, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+export function gitStageFile(cwd: string, filePath: string): Promise<void> {
+  return execGit(cwd, ['add', '--', filePath]);
+}
+
+export function gitUnstageFile(cwd: string, filePath: string): Promise<void> {
+  return execGit(cwd, ['reset', 'HEAD', '--', filePath]);
+}
+
+export function gitDiscardFile(cwd: string, filePath: string, area: GitFileEntry['area']): Promise<void> {
+  if (area === 'untracked') {
+    const fullPath = path.join(cwd, filePath);
+    return fs.promises.unlink(fullPath);
+  }
+  return execGit(cwd, ['checkout', '--', filePath]);
 }
 
 export function getGitWorktrees(cwd: string): Promise<GitWorktree[]> {
