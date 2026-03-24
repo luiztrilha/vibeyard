@@ -175,8 +175,16 @@ async function refresh(): Promise<void> {
   ));
 }
 
+function watchActiveProject(): void {
+  const project = appState.activeProject;
+  if (project) {
+    window.vibeyard.provider.watchProject('claude', project.path);
+  }
+}
+
 export function initConfigSections(): void {
-  appState.on('project-changed', () => refresh());
-  appState.on('state-loaded', () => refresh());
+  appState.on('project-changed', () => { watchActiveProject(); refresh(); });
+  appState.on('state-loaded', () => { watchActiveProject(); refresh(); });
   appState.on('preferences-changed', () => applyVisibility());
+  window.vibeyard.provider.onConfigChanged(() => refresh());
 }

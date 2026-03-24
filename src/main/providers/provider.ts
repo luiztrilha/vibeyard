@@ -15,4 +15,6 @@ export interface CliProvider {
   validateSettings(): SettingsValidationResult;
   reinstallSettings(): void;
   parseCostFromOutput?(rawText: string): { totalCostUsd: number } | null;
+  startConfigWatcher?(win: BrowserWindow, projectPath: string): void;
+  stopConfigWatcher?(): void;
 }

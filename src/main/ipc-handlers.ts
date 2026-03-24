@@ -165,6 +165,13 @@ export function registerIpcHandlers(): void {
     return provider.getConfig(projectPath);
   });
 
+  ipcMain.on('config:watchProject', (_event, providerId: ProviderId, projectPath: string) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win) return;
+    const provider = getProvider(providerId);
+    provider.startConfigWatcher?.(win, projectPath);
+  });
+
   ipcMain.handle('provider:getMeta', (_event, providerId: ProviderId) => {
     return getProviderMeta(providerId);
   });

@@ -7,6 +7,7 @@ import type { CliProvider } from './provider';
 import type { CliProviderMeta, ClaudeConfig, SettingsValidationResult } from '../../shared/types';
 import { getFullPath } from '../pty-manager';
 import { installStatusLineScript, cleanupAll as cleanupHookStatus } from '../hook-status';
+import { startConfigWatcher as startConfigWatch, stopConfigWatcher as stopConfigWatch } from '../config-watcher';
 import { installHooksOnly, installStatusLine, getClaudeConfig } from '../claude-cli';
 import { guardedInstall, validateSettings, reinstallSettings } from '../settings-guard';
 
@@ -151,7 +152,16 @@ export class ClaudeProvider implements CliProvider {
   }
 
   cleanup(): void {
+    stopConfigWatch();
     cleanupHookStatus();
+  }
+
+  startConfigWatcher(win: BrowserWindow, projectPath: string): void {
+    startConfigWatch(win, projectPath);
+  }
+
+  stopConfigWatcher(): void {
+    stopConfigWatch();
   }
 
   async getConfig(projectPath: string): Promise<ClaudeConfig | null> {

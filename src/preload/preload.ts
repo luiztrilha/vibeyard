@@ -37,6 +37,8 @@ export interface VibeyardApi {
     getMeta(providerId: ProviderId): Promise<CliProviderMeta>;
     listProviders(): Promise<CliProviderMeta[]>;
     checkBinary(providerId?: ProviderId): Promise<{ ok: boolean; message: string }>;
+    watchProject(providerId: ProviderId, projectPath: string): void;
+    onConfigChanged(callback: () => void): () => void;
   };
   /** @deprecated Use provider namespace instead */
   claude: {
@@ -156,6 +158,8 @@ const api: VibeyardApi = {
     getMeta: (providerId) => ipcRenderer.invoke('provider:getMeta', providerId),
     listProviders: () => ipcRenderer.invoke('provider:listProviders'),
     checkBinary: (providerId) => ipcRenderer.invoke('provider:checkBinary', providerId || 'claude'),
+    watchProject: (providerId, projectPath) => ipcRenderer.send('config:watchProject', providerId, projectPath),
+    onConfigChanged: (callback) => onChannel('config:changed', callback),
   },
   claude: {
     getConfig: (projectPath) => ipcRenderer.invoke('claude:getConfig', projectPath),

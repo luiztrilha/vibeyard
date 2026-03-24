@@ -33,6 +33,8 @@ export interface VibeyardApi {
     getConfig(providerId: ProviderId, projectPath: string): Promise<ClaudeConfig>;
     getMeta(providerId: ProviderId): Promise<CliProviderMeta>;
     listProviders(): Promise<CliProviderMeta[]>;
+    watchProject(providerId: ProviderId, projectPath: string): void;
+    onConfigChanged(callback: () => void): () => void;
   };
   /** @deprecated Use provider namespace */
   claude: {
