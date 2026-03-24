@@ -1,4 +1,4 @@
-import { onToolAlert, type ToolAlert } from '../tools/missing-tool-detector.js';
+import { onToolAlert, type ToolAlert, type FailureReason } from '../tools/missing-tool-detector.js';
 import { dismissInsight } from '../session-insights.js';
 import { appState } from '../state.js';
 import { showAlertBanner, removeAlertBanner } from './alert-banner.js';
@@ -23,13 +23,40 @@ function clearPendingAction(): void {
   }
 }
 
+type AlertableReason = Exclude<FailureReason, 'other'>;
+
+interface ReasonConfig {
+  icon: string;
+  message: (name: string, cmd: string, desc: string) => string;
+  prompt: (name: string, cmd: string, desc: string) => string;
+}
+
+const bannerConfig: Record<AlertableReason, ReasonConfig> = {
+  'not-found': {
+    icon: '\u2139',
+    message: (name, cmd, desc) => `"${name}" (${cmd}) is not installed. Install it for ${desc}.`,
+    prompt: (name, cmd) => `The CLI tool "${name}" (${cmd}) is not installed on this system. Please install it and verify the installation works.`,
+  },
+  'permission-denied': {
+    icon: '\u26A0',
+    message: (name, cmd) => `"${name}" (${cmd}) cannot execute \u2014 permission denied.`,
+    prompt: (name, cmd) => `The CLI tool "${name}" (${cmd}) exists but has a permission issue. Please check file permissions (e.g., chmod +x) and verify it can execute.`,
+  },
+  'auth-required': {
+    icon: '\uD83D\uDD12',
+    message: (name, cmd) => `"${name}" (${cmd}) requires authentication setup.`,
+    prompt: (name, cmd) => `The CLI tool "${name}" (${cmd}) is installed but requires authentication. Please set up authentication/login and verify it works.`,
+  },
+};
+
 function handleFixAction(alert: ToolAlert): void {
   const project = appState.activeProject;
   if (!project) return;
 
-  const prompt = `The CLI tool "${alert.tool.name}" (${alert.tool.command}) is not installed on this system. It would provide ${alert.tool.description}. Please install it and verify the installation works.`;
+  const config = bannerConfig[alert.reason as AlertableReason];
+  const prompt = config.prompt(alert.tool.name, alert.tool.command, alert.tool.description);
 
-  const session = appState.addSession(project.id, `Install ${alert.tool.name}`);
+  const session = appState.addSession(project.id, `Fix ${alert.tool.name}`);
   if (!session) return;
 
   removeAlertBanner();
@@ -42,12 +69,13 @@ function handleFixAction(alert: ToolAlert): void {
 }
 
 function showToolBanner(alert: ToolAlert): void {
-  const insightId = `missing-tool:${alert.tool.command}`;
+  const insightId = `tool-issue:${alert.tool.command}:${alert.reason}`;
+  const config = bannerConfig[alert.reason as AlertableReason];
 
   showAlertBanner({
     className: 'insight-alert-info',
-    icon: '\u2139',
-    message: `"${alert.tool.name}" (${alert.tool.command}) is not installed. Install it for ${alert.tool.description}.`,
+    icon: config.icon,
+    message: config.message(alert.tool.name, alert.tool.command, alert.tool.description),
     cta: {
       label: 'Fix in New Session',
       onClick: () => handleFixAction(alert),
