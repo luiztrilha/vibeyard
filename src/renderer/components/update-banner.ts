@@ -51,10 +51,7 @@ export function initUpdateBanner(): void {
     });
   });
 
-  window.vibeyard.update.onError((info) => {
-    show('Update check failed.', {
-      label: 'Dismiss',
-      action: () => banner.classList.add('hidden'),
-    }, 10_000);
+  window.vibeyard.update.onError(() => {
+    // Silently ignore update failures
   });
 }
