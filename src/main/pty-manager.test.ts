@@ -32,7 +32,7 @@ vi.mock('fs', () => ({
 }));
 
 import * as fs from 'fs';
-import { spawnPty, writePty, resizePty, killPty, getPtyCwd } from './pty-manager';
+import { spawnPty, writePty, resizePty, killPty, getPtyCwd, preparePtySpawn } from './pty-manager';
 import { initProviders } from './providers/registry';
 
 const mockExistsSync = vi.mocked(fs.existsSync);
@@ -178,6 +178,27 @@ describe('spawnPty', () => {
     expect(envPath).toContain('/usr/local/bin');
     expect(envPath).toContain('/opt/homebrew/bin');
     expect(envPath).toContain('/mock/home/.local/bin');
+  });
+});
+
+describe('preparePtySpawn', () => {
+  it('wraps .cmd launchers through cmd.exe on Windows', () => {
+    const result = preparePtySpawn('C:\\Users\\test\\AppData\\Roaming\\npm\\gemini.cmd', ['-i', 'hello world']);
+    expect(result.command).toBe(process.env.COMSPEC || 'cmd.exe');
+    expect(result.args).toEqual([
+      '/d',
+      '/s',
+      '/c',
+      'C:\\Users\\test\\AppData\\Roaming\\npm\\gemini.cmd -i "hello world"',
+    ]);
+  });
+
+  it('passes regular executables through unchanged', () => {
+    const result = preparePtySpawn('C:\\Users\\test\\.local\\bin\\claude.exe', ['--verbose']);
+    expect(result).toEqual({
+      command: 'C:\\Users\\test\\.local\\bin\\claude.exe',
+      args: ['--verbose'],
+    });
   });
 });
 

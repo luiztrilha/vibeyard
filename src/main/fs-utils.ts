@@ -2,9 +2,20 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
+export function joinPath(basePath: string, ...parts: string[]): string {
+  if (basePath.startsWith('/')) {
+    return path.posix.join(basePath, ...parts);
+  }
+  return path.join(basePath, ...parts);
+}
+
+export function joinHomePath(...parts: string[]): string {
+  return joinPath(os.homedir(), ...parts);
+}
+
 export function expandUserPath(filePath: string): string {
   if (filePath.startsWith('~/') || filePath === '~') {
-    return path.join(os.homedir(), filePath.slice(1));
+    return joinPath(os.homedir(), filePath.slice(1));
   }
   return filePath;
 }

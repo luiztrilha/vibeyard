@@ -29,6 +29,8 @@ export function createCustomSelect(
   trigger.type = 'button';
   trigger.className = 'custom-select-trigger';
   trigger.textContent = defaultOpt?.label ?? '';
+  trigger.setAttribute('aria-haspopup', 'listbox');
+  trigger.setAttribute('aria-expanded', 'false');
 
   const dropdown = document.createElement('div');
   dropdown.className = 'custom-select-dropdown';
@@ -78,6 +80,7 @@ export function createCustomSelect(
   function openDropdown(): void {
     dropdown.classList.add('visible');
     trigger.classList.add('open');
+    trigger.setAttribute('aria-expanded', 'true');
     activeIndex = options.findIndex(o => o.value === hidden.value);
     updateActive();
   }
@@ -85,6 +88,7 @@ export function createCustomSelect(
   function closeDropdown(): void {
     dropdown.classList.remove('visible');
     trigger.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
     activeIndex = -1;
     items.forEach(el => el.classList.remove('active'));
   }

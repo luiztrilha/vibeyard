@@ -3,8 +3,20 @@ import * as path from 'path';
 import * as os from 'os';
 import { BrowserWindow } from 'electron';
 
-export const STATUS_DIR = path.join(os.tmpdir(), 'vibeyard');
-const STATUSLINE_SCRIPT = path.join(STATUS_DIR, 'statusline.sh');
+const TMP_DIR = os.tmpdir();
+export const STATUS_DIR = TMP_DIR.startsWith('/')
+  ? path.posix.join(TMP_DIR, 'vibeyard')
+  : path.join(TMP_DIR, 'vibeyard');
+export const STATUS_DIR_ENV_VAR = 'VIBEYARD_STATUS_DIR';
+const IS_WINDOWS = process.platform === 'win32';
+const joinStatusPath = (...parts: string[]): string =>
+  STATUS_DIR.startsWith('/')
+    ? path.posix.join(STATUS_DIR, ...parts)
+    : path.join(STATUS_DIR, ...parts);
+const STATUSLINE_SCRIPT = joinStatusPath(IS_WINDOWS ? 'statusline.cmd' : 'statusline.sh');
+const STATUSLINE_HELPER = joinStatusPath('statusline.js');
+
+process.env[STATUS_DIR_ENV_VAR] = STATUS_DIR;
 
 const KNOWN_EXTENSIONS = ['.status', '.sessionid', '.cost', '.toolfailure', '.events'];
 
@@ -33,34 +45,43 @@ export function getStatusLineScriptPath(): string {
 export function installStatusLineScript(): void {
   fs.mkdirSync(STATUS_DIR, { recursive: true, mode: 0o700 });
 
-  // Script that extracts cost, context_window, and session_id from hook JSON stdin.
-  // Used by hook commands to write .cost and .sessionid files to STATUS_DIR.
-  const script = `#!/bin/sh
-/usr/bin/python3 -c "
-import sys,json,os
-try:
-    d=json.load(sys.stdin)
-except:
-    sys.exit(0)
-sid=os.environ.get('CLAUDE_IDE_SESSION_ID','')
-if not sid:
-    sys.exit(0)
-cost=d.get('cost',{})
-ctx=d.get('context_window',{})
-model=d.get('model',{}).get('display_name','')
-if cost or ctx or model:
-    payload={'cost':cost,'context_window':ctx}
-    if model:
-        payload['model']=model
-    with open(f'${STATUS_DIR}/{sid}.cost','w') as f:
-        json.dump(payload,f)
-claude_sid=d.get('session_id','')
-if claude_sid:
-    with open(f'${STATUS_DIR}/{sid}.sessionid','w') as f:
-        f.write(claude_sid)
-" 2>>${STATUS_DIR}/statusline.log
-`;
+  const helperScript = `let input='';\n` +
+    `process.stdin.setEncoding('utf8');\n` +
+    `process.stdin.on('data', chunk => input += chunk);\n` +
+    `process.stdin.on('end', () => {\n` +
+    `  let d;\n` +
+    `  try { d = JSON.parse(input || '{}'); } catch { return; }\n` +
+    `  const fs = require('fs');\n` +
+    `  const path = require('path');\n` +
+    `  const statusDir = process.env[${JSON.stringify(STATUS_DIR_ENV_VAR)}] || ${JSON.stringify(STATUS_DIR)};\n` +
+    `  const sid = process.env.CLAUDE_IDE_SESSION_ID || '';\n` +
+    `  if (!sid) return;\n` +
+    `  const cost = d.cost || {};\n` +
+    `  const ctx = d.context_window || {};\n` +
+    `  const model = d.model?.display_name || '';\n` +
+    `  if (Object.keys(cost).length || Object.keys(ctx).length || model) {\n` +
+    `    const payload = { cost, context_window: ctx };\n` +
+    `    if (model) payload.model = model;\n` +
+    `    fs.mkdirSync(statusDir, { recursive: true });\n` +
+    `    fs.writeFileSync(path.join(statusDir, sid + '.cost'), JSON.stringify(payload));\n` +
+    `  }\n` +
+    `  const claudeSid = d.session_id || '';\n` +
+    `  if (claudeSid) {\n` +
+    `    fs.mkdirSync(statusDir, { recursive: true });\n` +
+    `    fs.writeFileSync(path.join(statusDir, sid + '.sessionid'), claudeSid);\n` +
+    `  }\n` +
+    `});\n` +
+    `process.stdin.resume();\n`;
 
+  if (IS_WINDOWS) {
+    const wrapper = `@echo off\r\nnode "%~dp0statusline.js"\r\n`;
+    fs.writeFileSync(STATUSLINE_HELPER, helperScript, { mode: 0o755 });
+    fs.writeFileSync(STATUSLINE_SCRIPT, wrapper, { mode: 0o755 });
+    return;
+  }
+
+  const script = `#!/bin/sh\nnode "${STATUSLINE_HELPER.replace(/\\/g, '\\\\')}"\n`;
+  fs.writeFileSync(STATUSLINE_HELPER, helperScript, { mode: 0o755 });
   fs.writeFileSync(STATUSLINE_SCRIPT, script, { mode: 0o755 });
 }
 
@@ -82,7 +103,7 @@ function handleFileChange(win: BrowserWindow, filename: string): void {
 
   if (filename.endsWith('.status')) {
     const sessionId = filename.replace('.status', '');
-    const filePath = path.join(STATUS_DIR, filename);
+    const filePath = joinStatusPath(filename);
 
     try {
       const raw = fs.readFileSync(filePath, 'utf-8').trim();
@@ -100,7 +121,7 @@ function handleFileChange(win: BrowserWindow, filename: string): void {
     }
   } else if (filename.endsWith('.sessionid')) {
     const sessionId = filename.replace('.sessionid', '');
-    const filePath = path.join(STATUS_DIR, filename);
+    const filePath = joinStatusPath(filename);
 
     try {
       const cliSessionId = fs.readFileSync(filePath, 'utf-8').trim();
@@ -114,7 +135,7 @@ function handleFileChange(win: BrowserWindow, filename: string): void {
     }
   } else if (filename.endsWith('.cost')) {
     const sessionId = filename.replace('.cost', '');
-    const filePath = path.join(STATUS_DIR, filename);
+    const filePath = joinStatusPath(filename);
 
     try {
       const content = fs.readFileSync(filePath, 'utf-8').trim();
@@ -127,7 +148,7 @@ function handleFileChange(win: BrowserWindow, filename: string): void {
     }
   } else if (filename.endsWith('.toolfailure')) {
     const sessionId = extractedId;
-    const filePath = path.join(STATUS_DIR, filename);
+    const filePath = joinStatusPath(filename);
 
     try {
       const content = fs.readFileSync(filePath, 'utf-8').trim();
@@ -142,7 +163,7 @@ function handleFileChange(win: BrowserWindow, filename: string): void {
     try { fs.unlinkSync(filePath); } catch { /* already gone */ }
   } else if (filename.endsWith('.events')) {
     const sessionId = filename.replace('.events', '');
-    const filePath = path.join(STATUS_DIR, filename);
+    const filePath = joinStatusPath(filename);
     const offset = eventFileOffsets.get(sessionId) ?? 0;
 
     let fd: number | null = null;
@@ -180,7 +201,7 @@ function pollForChanges(win: BrowserWindow): void {
     const files = fs.readdirSync(STATUS_DIR);
     for (const filename of files) {
       if (!isKnownExtension(filename)) continue;
-      const filePath = path.join(STATUS_DIR, filename);
+      const filePath = joinStatusPath(filename);
       try {
         const stat = fs.statSync(filePath);
         const mtime = stat.mtimeMs;
@@ -259,7 +280,7 @@ export function startWatching(win: BrowserWindow): void {
 export function cleanupSessionStatus(sessionId: string): void {
   for (const ext of KNOWN_EXTENSIONS) {
     try {
-      fs.unlinkSync(path.join(STATUS_DIR, `${sessionId}${ext}`));
+      fs.unlinkSync(joinStatusPath(`${sessionId}${ext}`));
     } catch {
       // Already gone
     }
@@ -279,10 +300,11 @@ export function cleanupAll(): void {
     const files = fs.readdirSync(STATUS_DIR);
     for (const file of files) {
       if (isKnownExtension(file)) {
-        fs.unlinkSync(path.join(STATUS_DIR, file));
+        fs.unlinkSync(joinStatusPath(file));
       }
     }
-    // Remove the statusline script
+    // Remove helper and launcher
+    try { fs.unlinkSync(STATUSLINE_HELPER); } catch { /* already gone */ }
     try { fs.unlinkSync(STATUSLINE_SCRIPT); } catch { /* already gone */ }
     fs.rmdirSync(STATUS_DIR);
   } catch {

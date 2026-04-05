@@ -3,6 +3,7 @@
 // --- Provider ---
 
 export type ProviderId = 'claude' | 'codex' | 'copilot' | 'gemini';
+
 export type PendingPromptTrigger = 'session-start' | 'first-output' | 'startup-arg';
 
 export interface CliProviderCapabilities {
@@ -72,7 +73,7 @@ export interface ContextWindowInfo {
 export interface SessionRecord {
   id: string;
   name: string;
-  type?: 'claude' | 'mcp-inspector' | 'diff-viewer' | 'file-reader' | 'remote-terminal' | 'browser-tab';
+  type?: 'claude' | 'mcp-inspector' | 'diff-viewer' | 'file-reader' | 'remote-terminal' | 'browser';
   providerId?: ProviderId;
   args?: string;
   cliSessionId: string | null;
@@ -84,6 +85,7 @@ export interface SessionRecord {
   worktreePath?: string;
   fileReaderPath?: string;
   fileReaderLine?: number;
+  browserUrl?: string;
   createdAt: string;
   userRenamed?: boolean;
   cost?: CostInfo;
@@ -252,10 +254,8 @@ export interface ToolFailureData {
 // --- Session Inspector ---
 
 export type InspectorEventType =
-  // Core 7 (status + inspector)
   | 'session_start' | 'user_prompt' | 'tool_use' | 'tool_failure'
   | 'stop' | 'stop_failure' | 'permission_request'
-  // Inspector-only events
   | 'permission_denied'
   | 'pre_tool_use'
   | 'subagent_start' | 'subagent_stop'
@@ -291,19 +291,6 @@ export interface InspectorEvent {
   config_key?: string;
   question?: string;
   answer?: string;
-}
-
-export interface ToolUsageStats {
-  tool_name: string;
-  calls: number;
-  failures: number;
-  totalCost: number;
-}
-
-export interface ContextDataPoint {
-  timestamp: number;
-  usedPercentage: number;
-  totalTokens: number;
 }
 
 // --- MCP ---

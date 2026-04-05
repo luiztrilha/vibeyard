@@ -71,6 +71,8 @@
 }
 
 .custom-select-trigger {
+  appearance: none;
+  -webkit-appearance: none;
   display: flex;
   align-items: center;
   justify-content: space-between;

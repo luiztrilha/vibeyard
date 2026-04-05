@@ -5,6 +5,7 @@ import * as path from 'path';
 import type { ProviderId } from '../shared/types';
 import { getProvider } from './providers/registry';
 import { registerSession } from './hook-status';
+import { joinPath } from './fs-utils';
 
 interface PtyInstance {
   process: pty.IPty;
@@ -13,6 +14,36 @@ interface PtyInstance {
 
 const ptys = new Map<string, PtyInstance>();
 const silencedExits = new Set<string>();
+
+function quoteWindowsArg(arg: string): string {
+  if (arg.length === 0) return '""';
+  if (!/[\s"]/u.test(arg)) return arg;
+  return `"${arg.replace(/"/g, '\\"')}"`;
+}
+
+export function preparePtySpawn(binaryPath: string, args: string[]): { command: string; args: string[] } {
+  if (process.platform !== 'win32') {
+    return { command: binaryPath, args };
+  }
+
+  const ext = path.extname(binaryPath).toLowerCase();
+  if (ext === '.cmd' || ext === '.bat') {
+    const commandLine = [quoteWindowsArg(binaryPath), ...args.map(quoteWindowsArg)].join(' ');
+    return {
+      command: process.env.COMSPEC || 'cmd.exe',
+      args: ['/d', '/s', '/c', commandLine],
+    };
+  }
+
+  if (ext === '.ps1') {
+    return {
+      command: 'powershell.exe',
+      args: ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', binaryPath, ...args],
+    };
+  }
+
+  return { command: binaryPath, args };
+}
 
 /**
  * Get the full PATH by sourcing the user's login shell.
@@ -25,8 +56,17 @@ let cachedFullPath: string | null = null;
 export function getFullPath(): string {
   if (cachedFullPath) return cachedFullPath;
 
-  const shell = process.env.SHELL || '/bin/zsh';
   const currentPath = process.env.PATH || '';
+  const pathSeparator = path.delimiter;
+  const isWindows = process.platform === 'win32';
+  const home = os.homedir();
+
+  if (isWindows && !home.startsWith('/')) {
+    cachedFullPath = currentPath;
+    return cachedFullPath;
+  }
+
+  const shell = process.env.SHELL || '/bin/zsh';
 
   // Try to get the real PATH from a login shell
   try {
@@ -43,21 +83,20 @@ export function getFullPath(): string {
   } catch (err) { console.warn('Failed to resolve PATH from login shell:', err); }
 
   // Fallback: merge current PATH with common directories
-  const home = os.homedir();
   const extraDirs = [
     '/usr/local/bin',
     '/opt/homebrew/bin',
-    path.join(home, '.local', 'bin'),
-    path.join(home, '.npm-global', 'bin'),
+    joinPath(home, '.local', 'bin'),
+    joinPath(home, '.npm-global', 'bin'),
     '/usr/local/sbin',
     '/opt/homebrew/sbin',
   ];
 
-  const pathSet = new Set(currentPath.split(':'));
+  const pathSet = new Set(currentPath.split(pathSeparator));
   for (const dir of extraDirs) {
     pathSet.add(dir);
   }
-  cachedFullPath = Array.from(pathSet).join(':');
+  cachedFullPath = Array.from(pathSet).join(pathSeparator);
   return cachedFullPath;
 }
 
@@ -82,10 +121,11 @@ export function spawnPty(
 
   const provider = getProvider(providerId);
   const env = provider.buildEnv(sessionId, { ...process.env } as Record<string, string>);
-  const args = provider.buildArgs({ cliSessionId, isResume, extraArgs, initialPrompt });
+  const providerArgs = provider.buildArgs({ cliSessionId, isResume, extraArgs, initialPrompt });
   const shell = provider.resolveBinaryPath();
+  const spawnConfig = preparePtySpawn(shell, providerArgs);
 
-  const ptyProcess = pty.spawn(shell, args, {
+  const ptyProcess = pty.spawn(spawnConfig.command, spawnConfig.args, {
     name: 'xterm-256color',
     cols: 120,
     rows: 30,
@@ -138,7 +178,9 @@ export function spawnShellPty(
     killPty(sessionId);
   }
 
-  const shell = process.env.SHELL || '/bin/zsh';
+  const shell = process.platform === 'win32'
+    ? (process.env.COMSPEC || 'cmd.exe')
+    : (process.env.SHELL || '/bin/zsh');
   const shellEnv = { ...process.env, PATH: getFullPath() };
   const ptyProcess = pty.spawn(shell, [], {
     name: 'xterm-256color',

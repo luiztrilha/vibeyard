@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import type { ExecFileException } from 'child_process';
+import * as path from 'path';
 
 // Mock child_process and fs before importing the module
 vi.mock('child_process', () => ({
@@ -8,14 +9,18 @@ vi.mock('child_process', () => ({
 
 vi.mock('fs', () => ({
   readFileSync: vi.fn(),
+  promises: {
+    rm: vi.fn(),
+  },
 }));
 
 import { execFile } from 'child_process';
-import { readFileSync } from 'fs';
-import { getGitStatus, getGitFiles, getGitDiff, getGitWorktrees } from './git-status';
+import * as fs from 'fs';
+import { getGitStatus, getGitFiles, getGitDiff, getGitWorktrees, gitDiscardFile } from './git-status';
 
 const mockExecFile = vi.mocked(execFile);
-const mockReadFileSync = vi.mocked(readFileSync);
+const mockReadFileSync = vi.mocked(fs.readFileSync);
+const mockRm = vi.mocked(fs.promises.rm);
 
 function simulateExecFile(err: ExecFileException | null, stdout: string) {
   mockExecFile.mockImplementationOnce((_cmd, _args, _opts, callback) => {
@@ -309,5 +314,68 @@ describe('getGitWorktrees', () => {
 
     expect(worktrees).toHaveLength(1);
     expect(worktrees[0].path).toBe('/repo');
+  });
+});
+
+describe('gitDiscardFile', () => {
+  it('removes untracked directories recursively', async () => {
+    await gitDiscardFile('/repo', 'scratch', 'untracked');
+
+    expect(mockRm).toHaveBeenCalledWith(path.join('/repo', 'scratch'), { recursive: true, force: true });
+    expect(mockExecFile).not.toHaveBeenCalled();
+  });
+
+  it('unstages and restores tracked staged files', async () => {
+    simulateExecFile(null, '');
+    simulateExecFile(null, 'tracked.ts\n');
+    simulateExecFile(null, '');
+
+    await gitDiscardFile('/repo', 'tracked.ts', 'staged');
+
+    expect(mockExecFile).toHaveBeenNthCalledWith(
+      1,
+      'git',
+      ['reset', 'HEAD', '--', 'tracked.ts'],
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(mockExecFile).toHaveBeenNthCalledWith(
+      2,
+      'git',
+      ['ls-tree', '-r', '--name-only', 'HEAD', '--', 'tracked.ts'],
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(mockExecFile).toHaveBeenNthCalledWith(
+      3,
+      'git',
+      ['checkout', '--', 'tracked.ts'],
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(mockRm).not.toHaveBeenCalled();
+  });
+
+  it('removes newly added staged files that do not exist in HEAD', async () => {
+    simulateExecFile(null, '');
+    simulateExecFile(null, '');
+
+    await gitDiscardFile('/repo', 'new.ts', 'staged');
+
+    expect(mockExecFile).toHaveBeenNthCalledWith(
+      1,
+      'git',
+      ['reset', 'HEAD', '--', 'new.ts'],
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(mockExecFile).toHaveBeenNthCalledWith(
+      2,
+      'git',
+      ['ls-tree', '-r', '--name-only', 'HEAD', '--', 'new.ts'],
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(mockRm).toHaveBeenCalledWith(path.join('/repo', 'new.ts'), { recursive: true, force: true });
   });
 });

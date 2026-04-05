@@ -17,6 +17,7 @@ const tabListEl = document.getElementById('tab-list')!;
 const gitStatusEl = document.getElementById('git-status')!;
 const btnAddSession = document.getElementById('btn-add-session')!;
 const btnAddMcpInspector = document.getElementById('btn-add-mcp-inspector')!;
+const btnAddBrowser = document.getElementById('btn-add-browser')!;
 const btnToggleSwarm = document.getElementById('btn-toggle-swarm')!;
 const btnHelp = document.getElementById('btn-help')!;
 
@@ -35,6 +36,7 @@ export function initTabBar(): void {
     showAddSessionContextMenu(e.clientX, e.clientY);
   });
   btnAddMcpInspector.addEventListener('click', promptNewMcpInspector);
+  btnAddBrowser.addEventListener('click', openBrowserSession);
   btnToggleSwarm.addEventListener('click', () => appState.toggleSwarm());
   btnHelp.addEventListener('click', () => showHelpDialog());
   gitStatusEl.addEventListener('click', (e) => showBranchContextMenu(e));
@@ -831,6 +833,23 @@ export async function promptNewSession(onCreated?: (session: SessionRecord) => v
       if (session && onCreated) onCreated(session);
     }
   });
+}
+
+function toWebUrl(remoteUrl: string): string {
+  const ssh = remoteUrl.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+  if (ssh) return `https://${ssh[1]}/${ssh[2]}`;
+  return remoteUrl.replace(/\.git$/, '');
+}
+
+async function openBrowserSession(): Promise<void> {
+  const project = appState.activeProject;
+  if (!project) return;
+  let url = 'https://github.com';
+  try {
+    const remote = await window.vibeyard.git.getRemoteUrl(project.path);
+    if (remote) url = toWebUrl(remote);
+  } catch { /* use default */ }
+  appState.addBrowserTabSession(project.id, url);
 }
 
 function promptNewMcpInspector(): void {

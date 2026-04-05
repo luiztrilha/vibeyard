@@ -99,22 +99,20 @@ export function showPreferencesModal(): void {
       let snapshot = getProviderAvailabilitySnapshot();
       if (snapshot) {
         defaultProviderSelect = createCustomSelect('pref-default-provider', buildProviderOptions(snapshot.providers), currentDefault);
+        providerRow.appendChild(providerLabel);
+        providerRow.appendChild(defaultProviderSelect.element);
       } else {
-        defaultProviderSelect = createCustomSelect('pref-default-provider', [{ value: currentDefault, label: 'Loading…' }], currentDefault);
+        const loading = document.createElement('div');
+        loading.className = 'preferences-inline-loading';
+        loading.textContent = 'Loading…';
+        providerRow.appendChild(providerLabel);
+        providerRow.appendChild(loading);
         loadProviderAvailability().then(() => {
           if (currentSection !== 'general') return;
-          snapshot = getProviderAvailabilitySnapshot();
-          if (snapshot) {
-            if (defaultProviderSelect) defaultProviderSelect.destroy();
-            defaultProviderSelect = createCustomSelect('pref-default-provider', buildProviderOptions(snapshot.providers), currentDefault);
-            providerRow.querySelector('.custom-select')?.remove();
-            providerRow.appendChild(defaultProviderSelect.element);
-          }
+          renderSection('general');
         });
       }
 
-      providerRow.appendChild(providerLabel);
-      providerRow.appendChild(defaultProviderSelect.element);
       content.appendChild(providerRow);
 
       const row = document.createElement('div');

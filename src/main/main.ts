@@ -2,12 +2,13 @@ import { app, BrowserWindow, dialog, powerMonitor, shell } from 'electron';
 import * as path from 'path';
 import { registerIpcHandlers, resetHookWatcher } from './ipc-handlers';
 import { killAllPtys } from './pty-manager';
-import { flushState, loadState } from './store';
+import { flushState, loadState, saveStateSync } from './store';
 import { createAppMenu } from './menu';
 import { restartAndResync } from './hook-status';
 import { initProviders, getAllProviders } from './providers/registry';
 import { initAutoUpdater } from './auto-updater';
 import { stopGitWatcher } from './git-watcher';
+import type { ProviderId } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -25,7 +26,7 @@ function createWindow(): void {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false, // needed for node-pty IPC
-      webviewTag: true, // needed for browser-tab sessions
+      webviewTag: true,
     },
   });
 
@@ -60,31 +61,40 @@ function createWindow(): void {
 app.whenReady().then(async () => {
   initProviders();
 
-  // Validate all registered providers; block on Claude (default), warn on others
-  for (const provider of getAllProviders()) {
-    const prereq = provider.validatePrerequisites();
+  const providerStatuses = getAllProviders().map((provider) => ({
+    provider,
+    prereq: provider.validatePrerequisites(),
+  }));
+
+  const availableProviders = providerStatuses.filter(({ prereq }) => prereq.ok);
+  if (availableProviders.length === 0) {
+    const primaryFailure = providerStatuses[0]?.prereq.message ?? 'No supported CLI provider is installed.';
+    dialog.showErrorBox('Vibeyard — Missing Prerequisite', primaryFailure);
+    app.quit();
+    return;
+  }
+
+  for (const { provider, prereq } of providerStatuses) {
     if (!prereq.ok) {
-      if (provider.meta.id === 'claude') {
-        dialog.showErrorBox('Vibeyard — Missing Prerequisite', prereq.message);
-        app.quit();
-        return;
-      } else {
-        console.warn(`Provider "${provider.meta.displayName}" not available: ${prereq.message}`);
-      }
+      console.warn(`Provider "${provider.meta.displayName}" not available: ${prereq.message}`);
     }
   }
 
   registerIpcHandlers();
   const state = loadState();
+  const availableProviderIds = new Set<ProviderId>(availableProviders.map(({ provider }) => provider.meta.id));
+  const fallbackProviderId = availableProviders[0].provider.meta.id;
+  if (!state.preferences.defaultProvider || !availableProviderIds.has(state.preferences.defaultProvider)) {
+    state.preferences.defaultProvider = fallbackProviderId;
+    saveStateSync(state);
+  }
   createAppMenu(state.preferences?.debugMode ?? false);
   createWindow();
 
   // Install hooks and status scripts for available providers (after window creation so dialogs can attach)
-  for (const provider of getAllProviders()) {
-    if (provider.validatePrerequisites().ok) {
-      await provider.installHooks(mainWindow);
-      provider.installStatusScripts();
-    }
+  for (const { provider } of availableProviders) {
+    await provider.installHooks(mainWindow);
+    provider.installStatusScripts();
   }
 
   initAutoUpdater();

@@ -18,6 +18,10 @@
   Manage multiple agent sessions, run them in parallel, track costs, and never lose context — with Claude Code, Codex CLI, and Gemini CLI.
 </p>
 
+<p align="center">
+  <strong>Windows Edition Fork:</strong> this fork focuses on making Vibeyard run reliably on Windows, with portable CLI hooks, Windows-friendly process launching, and browser-tab responsive testing.
+</p>
+
 ---
 
 <p align="center">
@@ -34,6 +38,7 @@ Running AI coding agents in a bare terminal gets messy fast. Vibeyard gives you 
 
 ## Highlights
 
+- **Windows-focused fork** — this fork targets Windows as a first-class platform, with portable hook installation, native-friendly CLI spawning, and UI fixes for the Windows build
 - **P2P session sharing** — share live terminal sessions with teammates over encrypted peer-to-peer connections (WebRTC), with read-only or read-write modes and PIN-based authentication
 - **Multi-session management** — run multiple agent sessions per project, each in its own PTY; use swarm mode for a grid view of all sessions at once and spin up new ones with `Cmd+\`
 - **Cost & context tracking** — real-time spend, token usage, and context window monitoring per session
@@ -43,9 +48,22 @@ Running AI coding agents in a bare terminal gets messy fast. Vibeyard gives you 
 - **Smart alerts** — detects missing tools, context bloat, and session health issues
 - **Session status indicators** — color-coded dots on each tab show real-time session state (working, waiting, input needed, completed), with optional desktop notifications
 - **Embedded browser tab** — open any URL (e.g. `localhost:3000`) in a session tab, toggle element inspection to click any DOM element, and send AI editing instructions with the exact selector, text content, and page URL as context
+- **Responsive browser testing** — browser tabs include a viewport picker with presets such as Responsive, iPhone SE, iPhone 14, Pixel 7, iPad Air, and iPad Pro
 - **Keyboard-driven** — full shortcut support, built for speed
 
 > Supports Claude Code, OpenAI Codex CLI, and Gemini CLI. More AI CLI providers coming soon.
+
+## This Fork
+
+This repository is maintained as a Windows-oriented variant of Vibeyard.
+
+Key changes in this fork:
+
+- Portable hook execution for Claude, Codex, and Gemini using `node -e` instead of Unix-only `sh` and `/usr/bin/python3`
+- Windows-aware binary resolution and PTY spawning, including support for `.cmd` launchers
+- Status line and session telemetry scripts adapted for Windows
+- Browser tab flow updated to open the newer webview tab with responsive viewport presets
+- Renderer fixes for custom selects, tab icons, and other Windows UI rough edges
 
 ## Install
 

@@ -83,8 +83,15 @@ describe('hook-status', () => {
 
       expect(fs.mkdirSync).toHaveBeenCalledWith('/tmp/vibeyard', { recursive: true, mode: 0o700 });
       expect(fs.writeFileSync).toHaveBeenCalledWith(
-        '/tmp/vibeyard/statusline.sh',
-        expect.stringContaining('#!/bin/sh'),
+        '/tmp/vibeyard/statusline.js',
+        expect.stringContaining("process.stdin.setEncoding('utf8');"),
+        { mode: 0o755 },
+      );
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        process.platform === 'win32' ? '/tmp/vibeyard/statusline.cmd' : '/tmp/vibeyard/statusline.sh',
+        process.platform === 'win32'
+          ? expect.stringContaining('@echo off')
+          : expect.stringContaining('#!/bin/sh'),
         { mode: 0o755 },
       );
     });
@@ -402,11 +409,13 @@ describe('hook-status', () => {
       expect(fs.unlinkSync).toHaveBeenCalledWith('/tmp/vibeyard/a.status');
       expect(fs.unlinkSync).toHaveBeenCalledWith('/tmp/vibeyard/b.sessionid');
       expect(fs.unlinkSync).toHaveBeenCalledWith('/tmp/vibeyard/c.cost');
-      // statusline.sh removal
-      expect(fs.unlinkSync).toHaveBeenCalledWith('/tmp/vibeyard/statusline.sh');
+      expect(fs.unlinkSync).toHaveBeenCalledWith('/tmp/vibeyard/statusline.js');
+      expect(fs.unlinkSync).toHaveBeenCalledWith(
+        process.platform === 'win32' ? '/tmp/vibeyard/statusline.cmd' : '/tmp/vibeyard/statusline.sh',
+      );
       expect(fs.rmdirSync).toHaveBeenCalledWith('/tmp/vibeyard');
-      // 'other.log' should not be unlinked (3 matching + 1 script = 4)
-      expect(fs.unlinkSync).toHaveBeenCalledTimes(4);
+      // 'other.log' should not be unlinked (3 matching + helper + launcher = 5)
+      expect(fs.unlinkSync).toHaveBeenCalledTimes(5);
     });
 
     it('handles missing directory gracefully', () => {

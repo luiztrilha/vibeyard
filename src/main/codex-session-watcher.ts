@@ -3,8 +3,9 @@ import * as path from 'path';
 import * as os from 'os';
 import { BrowserWindow } from 'electron';
 import { STATUS_DIR } from './hook-status';
+import { joinPath } from './fs-utils';
 
-const HISTORY_PATH = path.join(os.homedir(), '.codex', 'history.jsonl');
+const HISTORY_PATH = joinPath(os.homedir(), '.codex', 'history.jsonl');
 
 /**
  * Codex CLI has no hook system to report session IDs back to the host app.
@@ -63,7 +64,7 @@ function readNewEntries(): void {
 
           fs.mkdirSync(STATUS_DIR, { recursive: true, mode: 0o700 });
           fs.writeFileSync(
-            path.join(STATUS_DIR, `${oldestId}.sessionid`),
+            joinPath(STATUS_DIR, `${oldestId}.sessionid`),
             codexSessionId
           );
           break;
@@ -103,7 +104,7 @@ export function unregisterCodexSession(sessionId: string): void {
 export function startCodexSessionWatcher(win: BrowserWindow): void {
   if (watcher) return;
 
-  const dir = path.dirname(HISTORY_PATH);
+  const dir = HISTORY_PATH.startsWith('/') ? path.posix.dirname(HISTORY_PATH) : path.dirname(HISTORY_PATH);
   try {
     fs.mkdirSync(dir, { recursive: true });
     watcher = fs.watch(dir, (_event, filename) => {

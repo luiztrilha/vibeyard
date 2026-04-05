@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const providerCaps = new Map([
-  ['claude', { costTracking: true, contextWindow: true, pendingPromptTrigger: 'startup-arg' }],
-  ['gemini', { costTracking: false, contextWindow: false, pendingPromptTrigger: 'startup-arg' }],
-  ['codex', { costTracking: false, contextWindow: false, pendingPromptTrigger: 'startup-arg' }],
+  ['claude', { costTracking: true, contextWindow: true, pendingPromptTrigger: 'startup-arg', shiftEnterNewline: true }],
+  ['gemini', { costTracking: false, contextWindow: false, pendingPromptTrigger: 'startup-arg', shiftEnterNewline: false }],
+  ['codex', { costTracking: false, contextWindow: false, pendingPromptTrigger: 'startup-arg', shiftEnterNewline: false }],
 ]);
 
 const mockPtyWrite = vi.fn();
@@ -13,8 +13,11 @@ vi.mock('@xterm/xterm', () => ({
   Terminal: class FakeTerminal {
     cols = 120;
     rows = 30;
+    keyHandler?: (e: KeyboardEvent) => boolean;
     loadAddon(): void {}
-    attachCustomKeyEventHandler(): void {}
+    attachCustomKeyEventHandler(handler: (e: KeyboardEvent) => boolean): void {
+      this.keyHandler = handler;
+    }
     registerLinkProvider(): void {}
     onData(): void {}
     open(): void {}
@@ -212,6 +215,48 @@ describe('terminal pending prompt injection', () => {
 
     handlePtyData('codex-2', 'some output');
     await vi.runAllTimersAsync();
+    expect(mockPtyWrite).not.toHaveBeenCalled();
+  });
+
+  it('sends the custom Shift+Enter sequence only for providers that support it', async () => {
+    const { createTerminalPane } = await import('./terminal-pane.js');
+
+    const instance = createTerminalPane('claude-shift-enter', '/project', null, false, '', 'claude');
+    const keyHandler = (instance.terminal as { keyHandler?: (e: KeyboardEvent) => boolean }).keyHandler;
+    const preventDefault = vi.fn();
+
+    const result = keyHandler?.({
+      type: 'keydown',
+      key: 'Enter',
+      shiftKey: true,
+      metaKey: false,
+      ctrlKey: false,
+      preventDefault,
+    } as unknown as KeyboardEvent);
+
+    expect(result).toBe(false);
+    expect(preventDefault).toHaveBeenCalled();
+    expect(mockPtyWrite).toHaveBeenCalledWith('claude-shift-enter', '\x1b[13;2u');
+  });
+
+  it('does not intercept Shift+Enter for providers without a custom newline sequence', async () => {
+    const { createTerminalPane } = await import('./terminal-pane.js');
+
+    const instance = createTerminalPane('codex-shift-enter', '/project', null, false, '', 'codex');
+    const keyHandler = (instance.terminal as { keyHandler?: (e: KeyboardEvent) => boolean }).keyHandler;
+    const preventDefault = vi.fn();
+
+    const result = keyHandler?.({
+      type: 'keydown',
+      key: 'Enter',
+      shiftKey: true,
+      metaKey: false,
+      ctrlKey: false,
+      preventDefault,
+    } as unknown as KeyboardEvent);
+
+    expect(result).toBe(true);
+    expect(preventDefault).not.toHaveBeenCalled();
     expect(mockPtyWrite).not.toHaveBeenCalled();
   });
 });

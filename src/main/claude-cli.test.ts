@@ -459,7 +459,7 @@ describe('installHooks', () => {
     const failureHooks = written.hooks.PostToolUseFailure
       .flatMap((m: { hooks: Array<{ command: string }> }) => m.hooks);
     expect(failureHooks.some((h: { command: string }) =>
-      h.command.includes('.toolfailure') && h.command.includes('d.get(\\"error\\"')
+      h.command.includes('.toolfailure') && h.command.includes('const error=d.error||')
     )).toBe(true);
 
     // PostToolUse event cmd should write .toolfailure for any non-empty result (no is_error dependency)

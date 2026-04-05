@@ -386,6 +386,26 @@ class AppState {
     return session;
   }
 
+  addBrowserSession(projectId: string, url: string): SessionRecord | undefined {
+    const project = this.state.projects.find((p) => p.id === projectId);
+    if (!project) return undefined;
+
+    const session: SessionRecord = {
+      id: crypto.randomUUID(),
+      name: 'Browser',
+      type: 'browser',
+      browserUrl: url,
+      cliSessionId: null,
+      createdAt: new Date().toISOString(),
+    };
+    project.sessions.push(session);
+    project.activeSessionId = session.id;
+    this.persist();
+    this.emit('session-added', { projectId, session });
+    this.emit('session-changed');
+    return session;
+  }
+
   addMcpInspectorSession(projectId: string, name: string): SessionRecord | undefined {
     const project = this.state.projects.find((p) => p.id === projectId);
     if (!project) return undefined;

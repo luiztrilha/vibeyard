@@ -239,12 +239,37 @@ export function gitUnstageFile(cwd: string, filePath: string): Promise<void> {
   return execGit(cwd, ['reset', 'HEAD', '--', filePath]);
 }
 
-export function gitDiscardFile(cwd: string, filePath: string, area: GitFileEntry['area']): Promise<void> {
-  if (area === 'untracked') {
-    const fullPath = path.join(cwd, filePath);
-    return fs.promises.unlink(fullPath);
+async function removePath(cwd: string, filePath: string): Promise<void> {
+  const fullPath = path.join(cwd, filePath);
+  await fs.promises.rm(fullPath, { recursive: true, force: true });
+}
+
+async function pathExistsInHead(cwd: string, filePath: string): Promise<boolean> {
+  try {
+    const stdout = await execGitWithOutput(cwd, ['ls-tree', '-r', '--name-only', 'HEAD', '--', filePath]);
+    return stdout
+      .split('\n')
+      .some((line) => line.trim() === filePath);
+  } catch {
+    return false;
   }
-  return execGit(cwd, ['checkout', '--', filePath]);
+}
+
+export async function gitDiscardFile(cwd: string, filePath: string, area: GitFileEntry['area']): Promise<void> {
+  if (area === 'untracked') {
+    await removePath(cwd, filePath);
+    return;
+  }
+  if (area === 'staged') {
+    await execGit(cwd, ['reset', 'HEAD', '--', filePath]);
+    if (await pathExistsInHead(cwd, filePath)) {
+      await execGit(cwd, ['checkout', '--', filePath]);
+    } else {
+      await removePath(cwd, filePath);
+    }
+    return;
+  }
+  await execGit(cwd, ['checkout', '--', filePath]);
 }
 
 export function getGitWorktrees(cwd: string): Promise<GitWorktree[]> {

@@ -1,14 +1,19 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { homedir } from 'os';
-import { STATUS_DIR } from './hook-status';
+import { STATUS_DIR, STATUS_DIR_ENV_VAR } from './hook-status';
 import { readJsonSafe } from './fs-utils';
 import type { InspectorEventType, SettingsValidationResult } from '../shared/types';
 
 export const GEMINI_HOOK_MARKER = '# vibeyard-hook';
 
-const GEMINI_DIR = path.join(homedir(), '.gemini');
-const SETTINGS_PATH = path.join(GEMINI_DIR, 'settings.json');
+const HOME_DIR = homedir();
+const joinHomePath = (...parts: string[]): string =>
+  HOME_DIR.startsWith('/')
+    ? path.posix.join(HOME_DIR, ...parts)
+    : path.join(HOME_DIR, ...parts);
+const GEMINI_DIR = joinHomePath('.gemini');
+const SETTINGS_PATH = joinHomePath('.gemini', 'settings.json');
 
 export const SESSION_ID_VAR = 'VIBEYARD_SESSION_ID';
 
@@ -29,6 +34,71 @@ type HooksConfig = Record<string, HookMatcherEntry[]>;
 
 function isIdeHook(h: HookHandler): boolean {
   return h.command?.includes(GEMINI_HOOK_MARKER) ?? false;
+}
+
+function buildNodeEvalCommand(code: string): string {
+  return `node -e ${JSON.stringify(code)} ${GEMINI_HOOK_MARKER}`;
+}
+
+function buildStatusCommand(event: string, status: string): string {
+  const payload = `${event}:${status}`;
+  return buildNodeEvalCommand(
+    `const fs=require('fs');` +
+      `const path=require('path');` +
+      `const sid=process.env[${JSON.stringify(SESSION_ID_VAR)}]||'';` +
+      `const statusDir=process.env[${JSON.stringify(STATUS_DIR_ENV_VAR)}]||${JSON.stringify(STATUS_DIR)};` +
+      `if(sid){` +
+      `fs.mkdirSync(statusDir,{recursive:true});` +
+      `fs.writeFileSync(path.join(statusDir,sid+'.status'),${JSON.stringify(payload)});` +
+      `}`
+  );
+}
+
+function buildStdinJsonCommand(body: string): string {
+  return buildNodeEvalCommand(
+    `let input='';` +
+      `process.stdin.setEncoding('utf8');` +
+      `process.stdin.on('data',chunk=>input+=chunk);` +
+      `process.stdin.on('end',()=>{` +
+      `let d;` +
+      `try{d=JSON.parse(input||'{}');}catch{return;}` +
+      body +
+      `});` +
+      `process.stdin.resume();`
+  );
+}
+
+function buildEventCaptureCommand(hookEvent: string, eventType: InspectorEventType): string {
+  return buildStdinJsonCommand(
+    `const fs=require('fs');` +
+      `const path=require('path');` +
+      `const sid=process.env[${JSON.stringify(SESSION_ID_VAR)}]||'';` +
+      `if(!sid)return;` +
+      `const statusDir=process.env[${JSON.stringify(STATUS_DIR_ENV_VAR)}]||${JSON.stringify(STATUS_DIR)};` +
+      `const e={type:${JSON.stringify(eventType)},timestamp:Date.now(),hookEvent:${JSON.stringify(hookEvent)}};` +
+      `const toolName=d.tool_name||'';` +
+      `if(toolName)e.tool_name=toolName;` +
+      `if(d.tool_input)e.tool_input=d.tool_input;` +
+      `for(const field of ['session_id','cwd']){` +
+      `const value=d[field];` +
+      `if(value)e[field]=value;` +
+      `}` +
+      `fs.mkdirSync(statusDir,{recursive:true});` +
+      `fs.appendFileSync(path.join(statusDir,sid+'.events'),JSON.stringify(e)+'\\n');`
+  );
+}
+
+function buildSessionIdCaptureCommand(): string {
+  return buildStdinJsonCommand(
+    `const fs=require('fs');` +
+      `const path=require('path');` +
+      `const sid=process.env[${JSON.stringify(SESSION_ID_VAR)}]||'';` +
+      `const cliSid=d.session_id||'';` +
+      `const statusDir=process.env[${JSON.stringify(STATUS_DIR_ENV_VAR)}]||${JSON.stringify(STATUS_DIR)};` +
+      `if(!sid||!cliSid)return;` +
+      `fs.mkdirSync(statusDir,{recursive:true});` +
+      `fs.writeFileSync(path.join(statusDir,sid+'.sessionid'),cliSid);`
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -58,35 +128,7 @@ export function installGeminiHooks(): void {
   const existingHooks: HooksConfig = (settings.hooks ?? {}) as HooksConfig;
   const cleaned = cleanHooks(existingHooks);
 
-  const statusCmd = (event: string, status: string) =>
-    `sh -c 'mkdir -p ${STATUS_DIR} && echo ${event}:${status} > ${STATUS_DIR}/$${SESSION_ID_VAR}.status ${GEMINI_HOOK_MARKER}'`;
-
-  const captureEventCmd = (hookEvent: string, eventType: string) =>
-    `sh -c 'cat | /usr/bin/python3 -c "import sys,json,os,time
-try:
- d=json.load(sys.stdin)
-except:
- sys.exit(0)
-sid=os.environ.get(\\"${SESSION_ID_VAR}\\",\\"\\")
-if not sid:
- sys.exit(0)
-e={\\"type\\":\\"${eventType}\\",\\"timestamp\\":int(time.time()*1000),\\"hookEvent\\":\\"${hookEvent}\\"}
-tn=d.get(\\"tool_name\\",\\"\\")
-if tn:
- e[\\"tool_name\\"]=tn
-ti=d.get(\\"tool_input\\")
-if ti:
- e[\\"tool_input\\"]=ti
-for fld in (\\"session_id\\",\\"cwd\\"):
- v=d.get(fld,\\"\\")
- if v:
-  e[fld]=v
-with open(f\\"${STATUS_DIR}/\\"+sid+\\".events\\",\\"a\\") as f:
- f.write(json.dumps(e)+\\"\\\\n\\")
-" 2>/dev/null ${GEMINI_HOOK_MARKER}'`;
-
-  const captureSessionIdCmd =
-    `sh -c 'input=$(cat); sid=$(echo "$input" | /usr/bin/python3 -c "import sys,json; print(json.load(sys.stdin).get(\\"session_id\\",\\"\\"))" 2>/dev/null); if [ -n "$sid" ]; then mkdir -p ${STATUS_DIR} && echo "$sid" > ${STATUS_DIR}/$${SESSION_ID_VAR}.sessionid; fi ${GEMINI_HOOK_MARKER}'`;
+  const captureSessionIdCmd = buildSessionIdCaptureCommand();
 
   // Status-changing events
   const ideEvents: Record<string, string> = {
@@ -108,12 +150,12 @@ with open(f\\"${STATUS_DIR}/\\"+sid+\\".events\\",\\"a\\") as f:
   for (const [event, status] of Object.entries(ideEvents)) {
     const existing = cleaned[event] ?? [];
     const hooks: HookHandler[] = [
-      { type: 'command', command: statusCmd(event, status), name: 'vibeyard-status' },
+      { type: 'command', command: buildStatusCommand(event, status), name: 'vibeyard-status' },
     ];
     if (event === 'SessionStart' || event === 'BeforeAgent') {
       hooks.push({ type: 'command', command: captureSessionIdCmd, name: 'vibeyard-sessionid' });
     }
-    hooks.push({ type: 'command', command: captureEventCmd(event, eventTypeMap[event]), name: 'vibeyard-events' });
+    hooks.push({ type: 'command', command: buildEventCaptureCommand(event, eventTypeMap[event]), name: 'vibeyard-events' });
     existing.push({ matcher: '', hooks });
     cleaned[event] = existing;
   }

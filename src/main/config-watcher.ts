@@ -1,8 +1,8 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import * as os from 'os';
 import type { BrowserWindow } from 'electron';
 import type { ProviderId } from '../shared/types';
+import { joinPath } from './fs-utils';
 
 const DEBOUNCE_MS = 500;
 
@@ -50,45 +50,45 @@ function stopAll(): void {
 
 function setupClaudeWatchers(projectPath: string): void {
   const home = os.homedir();
-  const claudeDir = path.join(home, '.claude');
+  const claudeDir = joinPath(home, '.claude');
 
   // Config files
   const files = [
-    path.join(home, '.claude.json'),
-    path.join(claudeDir, 'settings.json'),
-    path.join(home, '.mcp.json'),
-    path.join(projectPath, '.claude', 'settings.json'),
-    path.join(projectPath, '.mcp.json'),
+    joinPath(home, '.claude.json'),
+    joinPath(claudeDir, 'settings.json'),
+    joinPath(home, '.mcp.json'),
+    joinPath(projectPath, '.claude', 'settings.json'),
+    joinPath(projectPath, '.mcp.json'),
   ];
   for (const f of files) watchFile(f);
 
   // Directories for agents/skills/commands
   const dirs = [
-    path.join(claudeDir, 'agents'),
-    path.join(claudeDir, 'skills'),
-    path.join(claudeDir, 'commands'),
-    path.join(projectPath, '.claude', 'agents'),
-    path.join(projectPath, '.claude', 'skills'),
-    path.join(projectPath, '.claude', 'commands'),
+    joinPath(claudeDir, 'agents'),
+    joinPath(claudeDir, 'skills'),
+    joinPath(claudeDir, 'commands'),
+    joinPath(projectPath, '.claude', 'agents'),
+    joinPath(projectPath, '.claude', 'skills'),
+    joinPath(projectPath, '.claude', 'commands'),
   ];
   for (const d of dirs) watchDir(d);
 }
 
 function setupCodexWatchers(projectPath: string): void {
   const home = os.homedir();
-  const codexDir = path.join(home, '.codex');
+  const codexDir = joinPath(home, '.codex');
 
   const files = [
-    path.join(codexDir, 'config.toml'),
-    path.join(projectPath, '.codex', 'config.toml'),
+    joinPath(codexDir, 'config.toml'),
+    joinPath(projectPath, '.codex', 'config.toml'),
   ];
   for (const f of files) watchFile(f);
 
   const dirs = [
-    path.join(codexDir, 'agents'),
-    path.join(codexDir, 'skills'),
-    path.join(projectPath, '.codex', 'agents'),
-    path.join(projectPath, '.codex', 'skills'),
+    joinPath(codexDir, 'agents'),
+    joinPath(codexDir, 'skills'),
+    joinPath(projectPath, '.codex', 'agents'),
+    joinPath(projectPath, '.codex', 'skills'),
   ];
   for (const d of dirs) watchDir(d);
 }
@@ -97,8 +97,8 @@ function setupGeminiWatchers(projectPath: string): void {
   const home = os.homedir();
 
   const files = [
-    path.join(home, '.gemini', 'settings.json'),
-    path.join(projectPath, '.gemini', 'settings.json'),
+    joinPath(home, '.gemini', 'settings.json'),
+    joinPath(projectPath, '.gemini', 'settings.json'),
   ];
   for (const f of files) watchFile(f);
 }

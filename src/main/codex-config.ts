@@ -1,6 +1,5 @@
 import * as path from 'path';
-import { homedir } from 'os';
-import { fileExists, readDirSafe, readFileSafe } from './fs-utils';
+import { fileExists, joinHomePath, joinPath, readDirSafe, readFileSafe } from './fs-utils';
 import type { Agent, McpServer, ProviderConfig, Skill } from '../shared/types';
 
 function parseFrontmatter(filePath: string): Record<string, string> {
@@ -24,7 +23,7 @@ function readAgentsFromDir(dirPath: string, scope: 'user' | 'project'): Agent[] 
   const agents: Agent[] = [];
   for (const file of readDirSafe(dirPath)) {
     if (!file.endsWith('.md')) continue;
-    const filePath = path.join(dirPath, file);
+    const filePath = joinPath(dirPath, file);
     const fm = parseFrontmatter(filePath);
     if (!fm.name) continue;
     agents.push({
@@ -42,7 +41,7 @@ function readSkillsFromDir(dirPath: string, scope: 'user' | 'project'): Skill[] 
   const skills: Skill[] = [];
   for (const skillName of readDirSafe(dirPath)) {
     if (skillName.startsWith('.')) continue;
-    const filePath = path.join(dirPath, skillName, 'SKILL.md');
+    const filePath = joinPath(dirPath, skillName, 'SKILL.md');
     if (!fileExists(filePath)) continue;
     const fm = parseFrontmatter(filePath);
     skills.push({
@@ -132,11 +131,11 @@ function readMcpServersFromToml(filePath: string, scope: 'user' | 'project'): Mc
 }
 
 export async function getCodexConfig(projectPath: string): Promise<ProviderConfig> {
-  const codexDir = path.join(homedir(), '.codex');
-  const projectCodexDir = path.join(projectPath, '.codex');
+  const codexDir = joinHomePath('.codex');
+  const projectCodexDir = joinPath(projectPath, '.codex');
 
-  const userMcp = readMcpServersFromToml(path.join(codexDir, 'config.toml'), 'user');
-  const projectMcp = readMcpServersFromToml(path.join(projectCodexDir, 'config.toml'), 'project');
+  const userMcp = readMcpServersFromToml(joinPath(codexDir, 'config.toml'), 'user');
+  const projectMcp = readMcpServersFromToml(joinPath(projectCodexDir, 'config.toml'), 'project');
 
   const serverMap = new Map<string, McpServer>();
   for (const server of userMcp) serverMap.set(server.name, server);
@@ -145,8 +144,8 @@ export async function getCodexConfig(projectPath: string): Promise<ProviderConfi
   const agentNames = new Set<string>();
   const agents: Agent[] = [];
   for (const list of [
-    readAgentsFromDir(path.join(codexDir, 'agents'), 'user'),
-    readAgentsFromDir(path.join(projectCodexDir, 'agents'), 'project'),
+    readAgentsFromDir(joinPath(codexDir, 'agents'), 'user'),
+    readAgentsFromDir(joinPath(projectCodexDir, 'agents'), 'project'),
   ]) {
     for (const agent of list) {
       if (agentNames.has(agent.name)) continue;
@@ -158,8 +157,8 @@ export async function getCodexConfig(projectPath: string): Promise<ProviderConfi
   const skillNames = new Set<string>();
   const skills: Skill[] = [];
   for (const list of [
-    readSkillsFromDir(path.join(codexDir, 'skills'), 'user'),
-    readSkillsFromDir(path.join(projectCodexDir, 'skills'), 'project'),
+    readSkillsFromDir(joinPath(codexDir, 'skills'), 'user'),
+    readSkillsFromDir(joinPath(projectCodexDir, 'skills'), 'project'),
   ]) {
     for (const skill of list) {
       if (skillNames.has(skill.name)) continue;

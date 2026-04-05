@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { homedir } from 'os';
-import { STATUS_DIR, getStatusLineScriptPath } from './hook-status';
-import { readJsonSafe, readDirSafe } from './fs-utils';
+import { STATUS_DIR, STATUS_DIR_ENV_VAR, getStatusLineScriptPath } from './hook-status';
+import { joinHomePath, joinPath, readJsonSafe, readDirSafe } from './fs-utils';
 import type { McpServer, Agent, Skill, Command, ClaudeConfig, InspectorEventType } from '../shared/types';
 
 export type { McpServer, Agent, Skill, Command, ClaudeConfig } from '../shared/types';
@@ -63,9 +63,10 @@ function readAgentsFromDir(dirPath: string, scope: 'user' | 'project', category:
   const agents: Agent[] = [];
   for (const file of readDirSafe(dirPath)) {
     if (!file.endsWith('.md')) continue;
-    const fm = parseFrontmatter(path.join(dirPath, file));
+    const agentPath = joinPath(dirPath, file);
+    const fm = parseFrontmatter(agentPath);
     if (fm.name) {
-      agents.push({ name: fm.name, model: fm.model || '', category, scope, filePath: path.join(dirPath, file) });
+      agents.push({ name: fm.name, model: fm.model || '', category, scope, filePath: agentPath });
     }
   }
   return agents;
@@ -73,7 +74,7 @@ function readAgentsFromDir(dirPath: string, scope: 'user' | 'project', category:
 
 /** Read agents from installed plugins */
 function readPluginAgents(): Agent[] {
-  const installedPath = path.join(homedir(), '.claude', 'plugins', 'installed_plugins.json');
+  const installedPath = joinHomePath('.claude', 'plugins', 'installed_plugins.json');
   const installed = readJsonSafe(installedPath);
   if (!installed || typeof installed.plugins !== 'object' || installed.plugins === null) return [];
 
@@ -84,7 +85,7 @@ function readPluginAgents(): Agent[] {
   for (const [pluginId, versions] of Object.entries(plugins)) {
     if (!enabledPlugins.has(pluginId)) continue;
     for (const version of versions) {
-      const agentsDir = path.join(version.installPath, 'agents');
+      const agentsDir = joinPath(version.installPath, 'agents');
       const scope = (version.scope as 'user' | 'project') || 'user';
       agents.push(...readAgentsFromDir(agentsDir, scope, 'plugin'));
     }
@@ -94,7 +95,7 @@ function readPluginAgents(): Agent[] {
 
 /** Read skills from installed plugins */
 function readPluginSkills(): Skill[] {
-  const installedPath = path.join(homedir(), '.claude', 'plugins', 'installed_plugins.json');
+  const installedPath = joinHomePath('.claude', 'plugins', 'installed_plugins.json');
   const installed = readJsonSafe(installedPath);
   if (!installed || typeof installed.plugins !== 'object' || installed.plugins === null) return [];
 
@@ -105,10 +106,10 @@ function readPluginSkills(): Skill[] {
   for (const [pluginId, versions] of Object.entries(plugins)) {
     if (!enabledPlugins.has(pluginId)) continue;
     for (const version of versions) {
-      const skillsDir = path.join(version.installPath, 'skills');
+      const skillsDir = joinPath(version.installPath, 'skills');
       const scope = (version.scope as 'user' | 'project') || 'user';
       for (const skillName of readDirSafe(skillsDir)) {
-        const skillMd = path.join(skillsDir, skillName, 'SKILL.md');
+        const skillMd = joinPath(skillsDir, skillName, 'SKILL.md');
         const fm = parseFrontmatter(skillMd);
         if (fm.name || skillName) {
           skills.push({
@@ -130,8 +131,9 @@ function readCommandsFromDir(dirPath: string, scope: 'user' | 'project'): Comman
   for (const file of readDirSafe(dirPath)) {
     if (!file.endsWith('.md')) continue;
     const name = file.slice(0, -3);
-    const fm = parseFrontmatter(path.join(dirPath, file));
-    commands.push({ name, description: fm.description || '', scope, filePath: path.join(dirPath, file) });
+    const commandPath = joinPath(dirPath, file);
+    const fm = parseFrontmatter(commandPath);
+    commands.push({ name, description: fm.description || '', scope, filePath: commandPath });
   }
   return commands;
 }
@@ -140,7 +142,7 @@ function readCommandsFromDir(dirPath: string, scope: 'user' | 'project'): Comman
 function readSkillsFromDir(dirPath: string, scope: 'user' | 'project'): Skill[] {
   const skills: Skill[] = [];
   for (const skillName of readDirSafe(dirPath)) {
-    const skillMd = path.join(dirPath, skillName, 'SKILL.md');
+    const skillMd = joinPath(dirPath, skillName, 'SKILL.md');
     const fm = parseFrontmatter(skillMd);
     if (fm.name || skillName) {
       skills.push({ name: fm.name || skillName, description: fm.description || '', scope, filePath: skillMd });
@@ -151,7 +153,7 @@ function readSkillsFromDir(dirPath: string, scope: 'user' | 'project'): Skill[] 
 
 /** Get set of enabled plugin IDs from user settings */
 function getEnabledPlugins(): Set<string> {
-  const settings = readJsonSafe(path.join(homedir(), '.claude', 'settings.json'));
+  const settings = readJsonSafe(joinHomePath('.claude', 'settings.json'));
   if (!settings || typeof settings.enabledPlugins !== 'object' || settings.enabledPlugins === null) {
     return new Set();
   }
@@ -177,11 +179,112 @@ function isIdeHook(h: HookHandler): boolean {
   return h.command?.includes(HOOK_MARKER) ?? false;
 }
 
+function buildNodeEvalCommand(code: string): string {
+  return `node -e ${JSON.stringify(code)} ${HOOK_MARKER}`;
+}
+
+function buildStatusCommand(event: string, status: string): string {
+  const payload = `${event}:${status}`;
+  return buildNodeEvalCommand(
+    `const fs=require('fs');` +
+      `const path=require('path');` +
+      `const sid=process.env.CLAUDE_IDE_SESSION_ID||'';` +
+      `const statusDir=process.env[${JSON.stringify(STATUS_DIR_ENV_VAR)}]||${JSON.stringify(STATUS_DIR)};` +
+      `if(sid){` +
+      `fs.mkdirSync(statusDir,{recursive:true});` +
+      `fs.writeFileSync(path.join(statusDir,sid+'.status'),${JSON.stringify(payload)});` +
+      `}`
+  );
+}
+
+function buildStdinJsonCommand(body: string): string {
+  return buildNodeEvalCommand(
+    `let input='';` +
+      `process.stdin.setEncoding('utf8');` +
+      `process.stdin.on('data',chunk=>input+=chunk);` +
+      `process.stdin.on('end',()=>{` +
+      `let d;` +
+      `try{d=JSON.parse(input||'{}');}catch{return;}` +
+      body +
+      `});` +
+      `process.stdin.resume();`
+  );
+}
+
+function buildSessionIdCaptureCommand(): string {
+  return buildStdinJsonCommand(
+    `const fs=require('fs');` +
+      `const path=require('path');` +
+      `const sid=process.env.CLAUDE_IDE_SESSION_ID||'';` +
+      `const cliSid=d.session_id||'';` +
+      `const statusDir=process.env[${JSON.stringify(STATUS_DIR_ENV_VAR)}]||${JSON.stringify(STATUS_DIR)};` +
+      `if(!sid||!cliSid)return;` +
+      `fs.mkdirSync(statusDir,{recursive:true});` +
+      `fs.writeFileSync(path.join(statusDir,sid+'.sessionid'),cliSid);`
+  );
+}
+
+function buildToolFailureCaptureCommand(): string {
+  return buildStdinJsonCommand(
+    `const fs=require('fs');` +
+      `const path=require('path');` +
+      `const sid=process.env.CLAUDE_IDE_SESSION_ID||'';` +
+      `const toolName=d.tool_name||'';` +
+      `const toolInput=d.tool_input||{};` +
+      `const error=d.error||'';` +
+      `const statusDir=process.env[${JSON.stringify(STATUS_DIR_ENV_VAR)}]||${JSON.stringify(STATUS_DIR)};` +
+      `if(!sid||!toolName)return;` +
+      `fs.mkdirSync(statusDir,{recursive:true});` +
+      `const suffix=Math.random().toString(36).slice(2,8);` +
+      `fs.writeFileSync(path.join(statusDir,sid+'-'+suffix+'.toolfailure'),JSON.stringify({tool_name:toolName,tool_input:toolInput,error:error}));`
+  );
+}
+
+function buildEventCaptureCommand(hookEvent: string, eventType: InspectorEventType): string {
+  return buildStdinJsonCommand(
+    `const fs=require('fs');` +
+      `const path=require('path');` +
+      `const sid=process.env.CLAUDE_IDE_SESSION_ID||'';` +
+      `if(!sid)return;` +
+      `const statusDir=process.env[${JSON.stringify(STATUS_DIR_ENV_VAR)}]||${JSON.stringify(STATUS_DIR)};` +
+      `const e={type:${JSON.stringify(eventType)},timestamp:Date.now(),hookEvent:${JSON.stringify(hookEvent)}};` +
+      `const toolName=d.tool_name||'';` +
+      `if(toolName)e.tool_name=toolName;` +
+      `if(d.tool_input)e.tool_input=d.tool_input;` +
+      `const error=d.error||'';` +
+      `if(error)e.error=error;` +
+      `for(const field of ['agent_id','agent_type','last_assistant_message','agent_transcript_path','message','task_id','worktree_path','cwd','file_path','config_key','question','answer']){` +
+      `const value=d[field];` +
+      `if(value)e[field]=value;` +
+      `}` +
+      `if(d.cost){` +
+      `e.cost_snapshot={};` +
+      `if(d.cost.total_cost_usd!==undefined)e.cost_snapshot.total_cost_usd=d.cost.total_cost_usd;` +
+      `if(d.cost.total_duration_ms!==undefined)e.cost_snapshot.total_duration_ms=d.cost.total_duration_ms;` +
+      `}` +
+      `if(d.context_window){` +
+      `const totalTokens=(d.context_window.total_input_tokens||0)+(d.context_window.total_output_tokens||0);` +
+      `e.context_snapshot={total_tokens:totalTokens,context_window_size:d.context_window.context_window_size||200000,used_percentage:d.context_window.used_percentage||0};` +
+      `}` +
+      `if(toolName&&${JSON.stringify(hookEvent)}==='PostToolUse'){` +
+      `const result=d.tool_result||d.tool_response||'';` +
+      `const failureText=typeof result==='string'?result:(result?JSON.stringify(result):'');` +
+      `if(failureText){` +
+      `fs.mkdirSync(statusDir,{recursive:true});` +
+      `const suffix=Math.random().toString(36).slice(2,8);` +
+      `fs.writeFileSync(path.join(statusDir,sid+'-'+suffix+'.toolfailure'),JSON.stringify({tool_name:toolName,tool_input:d.tool_input||{},error:failureText}));` +
+      `}` +
+      `}` +
+      `fs.mkdirSync(statusDir,{recursive:true});` +
+      `fs.appendFileSync(path.join(statusDir,sid+'.events'),JSON.stringify(e)+'\\n');`
+  );
+}
+
 /**
  * Read and clean Claude settings, returning the settings object and cleaned hooks.
  */
 function prepareSettings(): { settings: Record<string, unknown>; cleaned: HooksConfig } {
-  const settingsPath = path.join(homedir(), '.claude', 'settings.json');
+  const settingsPath = joinHomePath('.claude', 'settings.json');
   let settings: Record<string, unknown> = {};
   try {
     settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
@@ -209,7 +312,7 @@ function prepareSettings(): { settings: Record<string, unknown>; cleaned: HooksC
 }
 
 function writeSettings(settings: Record<string, unknown>): void {
-  const settingsPath = path.join(homedir(), '.claude', 'settings.json');
+  const settingsPath = joinHomePath('.claude', 'settings.json');
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
 }
@@ -219,65 +322,8 @@ function writeSettings(settings: Record<string, unknown>): void {
  */
 export function installHooksOnly(): void {
   const { settings, cleaned } = prepareSettings();
-
-  const statusCmd = (event: string, status: string) =>
-    `sh -c 'mkdir -p ${STATUS_DIR} && echo ${event}:${status} > ${STATUS_DIR}/$CLAUDE_IDE_SESSION_ID.status ${HOOK_MARKER}'`;
-
-  // Hook to capture Claude's session ID from the hook input JSON (stdin)
-  const captureSessionIdCmd =
-    `sh -c 'input=$(cat); sid=$(echo "$input" | /usr/bin/python3 -c "import sys,json; print(json.load(sys.stdin).get(\\"session_id\\",\\"\\"))" 2>/dev/null); if [ -n "$sid" ]; then mkdir -p ${STATUS_DIR} && echo "$sid" > ${STATUS_DIR}/$CLAUDE_IDE_SESSION_ID.sessionid; fi ${HOOK_MARKER}'`;
-
-  // Hook to capture tool failure details (tool_name, tool_input, error) for missing-tool detection.
-  // Uses a random suffix to avoid filename collisions when multiple tools fail rapidly.
-  const captureToolFailureCmd =
-    `sh -c 'cat | /usr/bin/python3 -c "import sys,json,os,random,string; d=json.load(sys.stdin); sid=os.environ.get(\\"CLAUDE_IDE_SESSION_ID\\",\\"\\"); tn=d.get(\\"tool_name\\",\\"\\"); ti=d.get(\\"tool_input\\",{}); err=d.get(\\"error\\",\\"\\"); sfx=\\"\\".join(random.choices(string.ascii_lowercase,k=6)); json.dump({\\"tool_name\\":tn,\\"tool_input\\":ti,\\"error\\":err},open(f\\"${STATUS_DIR}/\\"+sid+\\"-\\"+sfx+\\".toolfailure\\",\\"w\\")) if sid and tn else None" 2>/dev/null ${HOOK_MARKER}'`;
-
-  // Hook to capture inspector events (tool names, cost snapshots, timestamps) into a JSONL log.
-  // Each hook event appends one JSON line to /tmp/vibeyard/{sessionId}.events
-  const captureEventCmd = (hookEvent: string, eventType: string) =>
-    `sh -c 'cat | /usr/bin/python3 -c "import sys,json,os,time
-try:
- d=json.load(sys.stdin)
-except:
- sys.exit(0)
-sid=os.environ.get(\\"CLAUDE_IDE_SESSION_ID\\",\\"\\")
-if not sid:
- sys.exit(0)
-cs=d.get(\\"cost\\",{})
-cw=d.get(\\"context_window\\",{})
-e={\\"type\\":\\"${eventType}\\",\\"timestamp\\":int(time.time()*1000),\\"hookEvent\\":\\"${hookEvent}\\"}
-tn=d.get(\\"tool_name\\",\\"\\")
-if tn:
- e[\\"tool_name\\"]=tn
-ti=d.get(\\"tool_input\\")
-if ti:
- e[\\"tool_input\\"]=ti
-er=d.get(\\"error\\",\\"\\")
-if er:
- e[\\"error\\"]=er
-for fld in (\\"agent_id\\",\\"agent_type\\",\\"last_assistant_message\\",\\"agent_transcript_path\\",\\"message\\",\\"task_id\\",\\"worktree_path\\",\\"cwd\\",\\"file_path\\",\\"config_key\\",\\"question\\",\\"answer\\"):
- v=d.get(fld,\\"\\")
- if v:
-  e[fld]=v
-if cs:
- e[\\"cost_snapshot\\"]={k:cs[k] for k in (\\"total_cost_usd\\",\\"total_duration_ms\\") if k in cs}
-if cw:
- tt=cw.get(\\"total_input_tokens\\",0)+cw.get(\\"total_output_tokens\\",0)
- e[\\"context_snapshot\\"]={
-  \\"total_tokens\\":tt,
-  \\"context_window_size\\":cw.get(\\"context_window_size\\",200000),
-  \\"used_percentage\\":cw.get(\\"used_percentage\\",0)
- }
-if tn and \\"${hookEvent}\\"==\\"PostToolUse\\":
- import random,string as st
- tr=d.get(\\"tool_result\\",\\"\\") or d.get(\\"tool_response\\",\\"\\")
- fe=tr if isinstance(tr,str) else json.dumps(tr) if tr else \\"\\"
- if fe:
-  sfx=\\"\\".join(random.choices(st.ascii_lowercase,k=6))
-  json.dump({\\"tool_name\\":tn,\\"tool_input\\":d.get(\\"tool_input\\",{}),\\"error\\":fe},open(f\\"${STATUS_DIR}/\\"+sid+\\"-\\"+sfx+\\".toolfailure\\",\\"w\\"))
-with open(f\\"${STATUS_DIR}/\\"+sid+\\".events\\",\\"a\\") as f:
- f.write(json.dumps(e)+\\"\\\\n\\")
-" 2>/dev/null ${HOOK_MARKER}'`;
+  const captureSessionIdCmd = buildSessionIdCaptureCommand();
+  const captureToolFailureCmd = buildToolFailureCaptureCommand();
 
   // Add our hooks for each event type
   const ideEvents: Record<string, string> = {
@@ -302,7 +348,7 @@ with open(f\\"${STATUS_DIR}/\\"+sid+\\".events\\",\\"a\\") as f:
 
   for (const [event, status] of Object.entries(ideEvents)) {
     const existing = cleaned[event] ?? [];
-    const hooks: HookHandler[] = [{ type: 'command', command: statusCmd(event, status) }];
+    const hooks: HookHandler[] = [{ type: 'command', command: buildStatusCommand(event, status) }];
     // Capture Claude session ID on session start and prompt submission
     if (event === 'SessionStart' || event === 'UserPromptSubmit') {
       hooks.push({ type: 'command', command: captureSessionIdCmd });
@@ -312,7 +358,7 @@ with open(f\\"${STATUS_DIR}/\\"+sid+\\".events\\",\\"a\\") as f:
       hooks.push({ type: 'command', command: captureToolFailureCmd });
     }
     // Capture inspector event log for session inspection
-    hooks.push({ type: 'command', command: captureEventCmd(event, eventTypeMap[event]) });
+    hooks.push({ type: 'command', command: buildEventCaptureCommand(event, eventTypeMap[event]) });
     existing.push({
       matcher: '',
       hooks,
@@ -347,7 +393,7 @@ with open(f\\"${STATUS_DIR}/\\"+sid+\\".events\\",\\"a\\") as f:
     const existing = cleaned[event] ?? [];
     existing.push({
       matcher: '',
-      hooks: [{ type: 'command', command: captureEventCmd(event, eventType) }],
+      hooks: [{ type: 'command', command: buildEventCaptureCommand(event, eventType) }],
     });
     cleaned[event] = existing;
   }
@@ -448,7 +494,7 @@ export function addMcpServer(
   scope: 'user' | 'project',
   projectPath?: string,
 ): void {
-  const filePath = path.join(homedir(), '.claude.json');
+  const filePath = joinHomePath('.claude.json');
   const json = readJsonSafe(filePath) ?? {};
 
   if (scope === 'project' && projectPath) {
@@ -500,21 +546,21 @@ export function removeMcpServer(
 
 export async function getClaudeConfig(projectPath: string): Promise<ClaudeConfig> {
   const home = homedir();
-  const claudeDir = path.join(home, '.claude');
+  const claudeDir = joinPath(home, '.claude');
 
   // MCP Servers from multiple sources (matching Claude CLI resolution order)
   // 1. ~/.claude.json (user + local scope — primary location for `claude mcp add`)
-  const claudeJsonServers = readMcpFromClaudeJson(path.join(home, '.claude.json'), projectPath);
+  const claudeJsonServers = readMcpFromClaudeJson(joinPath(home, '.claude.json'), projectPath);
   // 2. ~/.claude/settings.json and ~/.mcp.json (legacy/additional user scope)
   const userServers = readMcpServers(
-    path.join(claudeDir, 'settings.json'),
-    path.join(home, '.mcp.json'),
+    joinPath(claudeDir, 'settings.json'),
+    joinPath(home, '.mcp.json'),
     'user',
   );
   // 3. Project-level: .claude/settings.json and .mcp.json
   const projectServers = readMcpServers(
-    path.join(projectPath, '.claude', 'settings.json'),
-    path.join(projectPath, '.mcp.json'),
+    joinPath(projectPath, '.claude', 'settings.json'),
+    joinPath(projectPath, '.mcp.json'),
     'project',
   );
   // 4. System-managed servers
@@ -530,8 +576,8 @@ export async function getClaudeConfig(projectPath: string): Promise<ClaudeConfig
 
   // Agents
   const pluginAgents = readPluginAgents();
-  const userAgents = readAgentsFromDir(path.join(claudeDir, 'agents'), 'user', 'plugin');
-  const projectAgents = readAgentsFromDir(path.join(projectPath, '.claude', 'agents'), 'project', 'plugin');
+  const userAgents = readAgentsFromDir(joinPath(claudeDir, 'agents'), 'user', 'plugin');
+  const projectAgents = readAgentsFromDir(joinPath(projectPath, '.claude', 'agents'), 'project', 'plugin');
 
   const agentNames = new Set<string>();
   const agents: Agent[] = [];
@@ -546,8 +592,8 @@ export async function getClaudeConfig(projectPath: string): Promise<ClaudeConfig
 
   // Skills
   const pluginSkills = readPluginSkills();
-  const userSkills = readSkillsFromDir(path.join(claudeDir, 'skills'), 'user');
-  const projectSkills = readSkillsFromDir(path.join(projectPath, '.claude', 'skills'), 'project');
+  const userSkills = readSkillsFromDir(joinPath(claudeDir, 'skills'), 'user');
+  const projectSkills = readSkillsFromDir(joinPath(projectPath, '.claude', 'skills'), 'project');
 
   const skillNames = new Set<string>();
   const skills: Skill[] = [];
@@ -561,8 +607,8 @@ export async function getClaudeConfig(projectPath: string): Promise<ClaudeConfig
   }
 
   // Commands
-  const userCommands = readCommandsFromDir(path.join(claudeDir, 'commands'), 'user');
-  const projectCommands = readCommandsFromDir(path.join(projectPath, '.claude', 'commands'), 'project');
+  const userCommands = readCommandsFromDir(joinPath(claudeDir, 'commands'), 'user');
+  const projectCommands = readCommandsFromDir(joinPath(projectPath, '.claude', 'commands'), 'project');
 
   const commandNames = new Set<string>();
   const commands: Command[] = [];

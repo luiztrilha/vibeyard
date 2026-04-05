@@ -116,8 +116,8 @@ export function createTerminalPane(
     if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
       return false;
     }
-    // Send CSI u encoding for Shift+Enter so Claude CLI treats it as newline
-    if (e.shiftKey && e.key === 'Enter') {
+    // Only intercept Shift+Enter for providers that declare a custom newline sequence.
+    if (caps?.shiftEnterNewline && e.shiftKey && e.key === 'Enter') {
       if (e.type === 'keydown') {
         window.vibeyard.pty.write(sessionId, '\x1b[13;2u');
       }

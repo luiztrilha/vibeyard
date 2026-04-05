@@ -20,7 +20,6 @@ import {
   getInspectorInstance,
   disconnectInspector,
 } from './mcp-inspector.js';
-import { isInspectorOpen } from './session-inspector.js';
 import {
   createFileViewerPane,
   destroyFileViewerPane,
@@ -46,6 +45,14 @@ import {
   hideAllRemotePanes,
 } from './remote-terminal-pane.js';
 import {
+  createBrowserPane,
+  destroyBrowserPane,
+  showBrowserPane,
+  hideAllBrowserPanes,
+  attachBrowserToContainer,
+  getBrowserInstance,
+} from './browser-pane.js';
+import {
   createBrowserTabPane,
   destroyBrowserTabPane,
   showBrowserTabPane,
@@ -56,13 +63,6 @@ import {
 import { quickNewSession } from './tab-bar.js';
 
 const container = document.getElementById('terminal-container')!;
-
-/** Set the container's layout class while preserving the inspector-open class if active. */
-function setContainerClass(cls: string): void {
-  const hasInspector = isInspectorOpen();
-  container.className = cls;
-  if (hasInspector) container.classList.add('inspector-open');
-}
 
 export function initSplitLayout(): void {
   appState.on('state-loaded', renderLayout);
@@ -98,7 +98,7 @@ export function initSplitLayout(): void {
 }
 
 function onSessionAdded(data: unknown): void {
-  const { session } = data as { projectId: string; session: { id: string; type?: string; cliSessionId: string | null; providerId?: string; args?: string; diffFilePath?: string; diffArea?: string; worktreePath?: string; fileReaderPath?: string; fileReaderLine?: number; browserTabUrl?: string } };
+  const { session } = data as { projectId: string; session: { id: string; type?: string; cliSessionId: string | null; providerId?: string; args?: string; diffFilePath?: string; diffArea?: string; worktreePath?: string; fileReaderPath?: string; fileReaderLine?: number } };
   const project = appState.activeProject;
   if (!project) return;
 
@@ -113,6 +113,9 @@ function onSessionAdded(data: unknown): void {
     renderLayout();
   } else if (session.type === 'remote-terminal') {
     // Remote terminal pane is created by share-manager before session-added fires
+    renderLayout();
+  } else if (session.type === 'browser') {
+    createBrowserPane(session.id, session.browserUrl || 'https://github.com');
     renderLayout();
   } else if (session.type === 'browser-tab') {
     createBrowserTabPane(session.id, session.browserTabUrl);
@@ -141,6 +144,8 @@ function onSessionRemoved(data: unknown): void {
     destroyInspectorPane(sessionId);
   } else if (getRemoteTerminalInstance(sessionId)) {
     destroyRemoteTerminal(sessionId);
+  } else if (getBrowserInstance(sessionId)) {
+    destroyBrowserPane(sessionId);
   } else if (getBrowserTabInstance(sessionId)) {
     destroyBrowserTabPane(sessionId);
   } else {
@@ -154,12 +159,7 @@ export function renderLayout(): void {
 
   if (!project || project.sessions.length === 0) {
     hideAllPanes();
-    hideAllInspectorPanes();
-    hideAllFileViewerPanes();
-    hideAllFileReaderPanes();
-    hideAllRemotePanes();
-    hideAllBrowserTabPanes();
-    setContainerClass('');
+    container.className = '';
     showEmptyState(project);
     return;
   }
@@ -184,6 +184,10 @@ export function renderLayout(): void {
       }
     } else if (session.type === 'remote-terminal') {
       // Remote terminal instances are created by share-manager, skip here
+    } else if (session.type === 'browser') {
+      if (!getBrowserInstance(session.id)) {
+        createBrowserPane(session.id, session.browserUrl || 'https://github.com');
+      }
     } else if (session.type === 'browser-tab') {
       if (!getBrowserTabInstance(session.id)) {
         createBrowserTabPane(session.id, session.browserTabUrl);
@@ -200,6 +204,7 @@ export function renderLayout(): void {
   hideAllFileViewerPanes();
   hideAllFileReaderPanes();
   hideAllRemotePanes();
+  hideAllBrowserPanes();
   hideAllBrowserTabPanes();
 
   if (project.layout.mode === 'swarm' && project.layout.splitPanes.length >= 1) {
@@ -213,7 +218,7 @@ export function renderLayout(): void {
   requestAnimationFrame(fitAllVisible);
 }
 
-/** Attach and show a non-CLI session pane. */
+/** Attach and show a non-CLI session pane (file-reader, diff-viewer, mcp-inspector). */
 function attachNonCliPane(session: { id: string; type?: string; fileReaderLine?: number }, target: HTMLElement, inSplit: boolean): void {
   if (session.type === 'file-reader') {
     attachFileReaderToContainer(session.id, target);
@@ -230,6 +235,9 @@ function attachNonCliPane(session: { id: string; type?: string; fileReaderLine?:
   } else if (session.type === 'remote-terminal') {
     attachRemoteToContainer(session.id, target);
     showRemotePane(session.id, inSplit);
+  } else if (session.type === 'browser') {
+    attachBrowserToContainer(session.id, target);
+    showBrowserPane(session.id, inSplit);
   } else if (session.type === 'browser-tab') {
     attachBrowserTabToContainer(session.id, target);
     showBrowserTabPane(session.id, inSplit);
@@ -237,7 +245,7 @@ function attachNonCliPane(session: { id: string; type?: string; fileReaderLine?:
 }
 
 function renderTabMode(project: ProjectRecord): void {
-  setContainerClass('');
+  container.className = '';
   container.style.gridTemplateColumns = '';
   container.style.gridTemplateRows = '';
 
@@ -298,7 +306,7 @@ function focusActivePane(project: ProjectRecord): void {
 }
 
 function renderSplitMode(project: ProjectRecord): void {
-  setContainerClass(`split-${project.layout.splitDirection}`);
+  container.className = `split-${project.layout.splitDirection}`;
   container.style.gridTemplateColumns = '';
   container.style.gridTemplateRows = '';
   showPanes(project);
@@ -311,22 +319,12 @@ function renderSwarmMode(project: ProjectRecord): void {
   const rows = Math.ceil(count / cols);
 
   const activeSession = project.sessions.find(s => s.id === project.activeSessionId);
-  const nonCliSession = (activeSession?.type && activeSession.type !== 'claude')
-    ? activeSession
-    : [...project.sessions].reverse().find(s => s.type && s.type !== 'claude');
+  const isNonCliActive = activeSession?.type && activeSession.type !== 'claude';
 
-  const hasInspector = isInspectorOpen();
+  container.className = 'swarm-mode';
 
-  setContainerClass('swarm-mode');
-
-  const needsWrapper = nonCliSession || hasInspector;
-
-  if (needsWrapper) {
-    const colParts: string[] = ['1fr'];
-    if (nonCliSession) colParts.push('1fr');
-    if (hasInspector) colParts.push('var(--inspector-width, 350px)');
-
-    container.style.gridTemplateColumns = colParts.join(' ');
+  if (isNonCliActive) {
+    container.style.gridTemplateColumns = '1fr 1fr';
     container.style.gridTemplateRows = '1fr';
 
     const gridWrapper = document.createElement('div');
@@ -337,17 +335,7 @@ function renderSwarmMode(project: ProjectRecord): void {
 
     showPanes(project, gridWrapper);
     appendEmptyCells(cols * rows - count, gridWrapper);
-
-    if (nonCliSession) {
-      attachNonCliPane(nonCliSession, container, true);
-    }
-
-    if (hasInspector) {
-      const inspectorEl = container.querySelector('#session-inspector');
-      if (inspectorEl) {
-        container.appendChild(inspectorEl);
-      }
-    }
+    attachNonCliPane(activeSession, container, true);
   } else {
     container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     container.style.gridTemplateRows = `repeat(${rows}, 1fr)`;

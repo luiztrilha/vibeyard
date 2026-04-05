@@ -1,6 +1,4 @@
-import * as path from 'path';
-import { homedir } from 'os';
-import { readJsonSafe } from './fs-utils';
+import { joinHomePath, joinPath, readJsonSafe } from './fs-utils';
 import type { McpServer, ProviderConfig } from '../shared/types';
 
 function readMcpServersFromJson(filePath: string, scope: 'user' | 'project'): McpServer[] {
@@ -18,11 +16,11 @@ function readMcpServersFromJson(filePath: string, scope: 'user' | 'project'): Mc
 }
 
 export async function getGeminiConfig(projectPath: string): Promise<ProviderConfig> {
-  const geminiDir = path.join(homedir(), '.gemini');
-  const projectGeminiDir = path.join(projectPath, '.gemini');
+  const geminiDir = joinHomePath('.gemini');
+  const projectGeminiDir = joinPath(projectPath, '.gemini');
 
-  const userMcp = readMcpServersFromJson(path.join(geminiDir, 'settings.json'), 'user');
-  const projectMcp = readMcpServersFromJson(path.join(projectGeminiDir, 'settings.json'), 'project');
+  const userMcp = readMcpServersFromJson(joinPath(geminiDir, 'settings.json'), 'user');
+  const projectMcp = readMcpServersFromJson(joinPath(projectGeminiDir, 'settings.json'), 'project');
 
   const serverMap = new Map<string, McpServer>();
   for (const server of userMcp) serverMap.set(server.name, server);
