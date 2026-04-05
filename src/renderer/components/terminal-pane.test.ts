@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const providerCaps = new Map([
   ['claude', { costTracking: true, contextWindow: true, pendingPromptTrigger: 'startup-arg', shiftEnterNewline: true }],
   ['gemini', { costTracking: false, contextWindow: false, pendingPromptTrigger: 'startup-arg', shiftEnterNewline: false }],
-  ['codex', { costTracking: false, contextWindow: false, pendingPromptTrigger: process.platform === 'win32' ? 'session-start' : 'startup-arg', shiftEnterNewline: false }],
+  ['codex', { costTracking: false, contextWindow: false, pendingPromptTrigger: process.platform === 'win32' ? 'first-output' : 'startup-arg', shiftEnterNewline: false }],
 ]);
 
 const mockPtyWrite = vi.fn();
@@ -193,7 +193,9 @@ describe('terminal pending prompt injection', () => {
     await spawnTerminal('codex-1');
     if (process.platform === 'win32') {
       expect(mockPtyCreate).toHaveBeenCalledWith('codex-1', '/project', null, false, '', 'codex', undefined);
-      await vi.advanceTimersByTimeAsync(50);
+      const { handlePtyData } = await import('./terminal-pane.js');
+      handlePtyData('codex-1', 'OpenAI Codex ready');
+      await vi.advanceTimersByTimeAsync(10);
       expect(mockPtyWrite).toHaveBeenCalledWith('codex-1', 'fix the bug\r');
     } else {
       expect(mockPtyCreate).toHaveBeenCalledWith('codex-1', '/project', null, false, '', 'codex', 'fix the bug');
@@ -211,18 +213,24 @@ describe('terminal pending prompt injection', () => {
     expect(mockPtyCreate).toHaveBeenCalledWith('claude-2', '/project', null, false, '', 'claude', undefined);
   });
 
-  it('does not inject pending prompt from PTY output', async () => {
+  it('injects pending prompt only once on first PTY output', async () => {
     const { createTerminalPane, setPendingPrompt, handlePtyData, spawnTerminal } = await import('./terminal-pane.js');
 
     createTerminalPane('codex-2', '/project', null, false, '', 'codex');
     setPendingPrompt('codex-2', 'some prompt');
     await spawnTerminal('codex-2');
-    await vi.runAllTimersAsync();
-    mockPtyWrite.mockClear();
-
     handlePtyData('codex-2', 'some output');
     await vi.runAllTimersAsync();
-    expect(mockPtyWrite).not.toHaveBeenCalled();
+    if (process.platform === 'win32') {
+      expect(mockPtyWrite).toHaveBeenCalledTimes(1);
+      expect(mockPtyWrite).toHaveBeenCalledWith('codex-2', 'some prompt\r');
+      mockPtyWrite.mockClear();
+      handlePtyData('codex-2', 'second output');
+      await vi.runAllTimersAsync();
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+    } else {
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+    }
   });
 
   it('sends the custom Shift+Enter sequence only for providers that support it', async () => {

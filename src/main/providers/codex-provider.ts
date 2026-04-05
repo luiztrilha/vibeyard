@@ -21,7 +21,7 @@ export class CodexProvider implements CliProvider {
       hookStatus: true,
       configReading: true,
       shiftEnterNewline: false,
-      pendingPromptTrigger: process.platform === 'win32' ? 'session-start' : 'startup-arg',
+      pendingPromptTrigger: process.platform === 'win32' ? 'first-output' : 'startup-arg',
     },
     defaultContextWindowSize: 200_000,
   };

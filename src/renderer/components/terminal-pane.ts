@@ -222,15 +222,6 @@ export async function spawnTerminal(sessionId: string): Promise<void> {
     instance.pendingPrompt = null;
   }
   await window.vibeyard.pty.create(sessionId, instance.projectPath, instance.cliSessionId, instance.isResume, instance.args, instance.providerId, initialPrompt);
-  if (instance.pendingPrompt && pendingPromptTrigger === 'session-start') {
-    const prompt = instance.pendingPrompt;
-    instance.pendingPrompt = null;
-    clearPendingPromptTimer(instance);
-    instance.pendingPromptTimer = setTimeout(() => {
-      window.vibeyard.pty.write(sessionId, `${prompt}\r`);
-      instance.pendingPromptTimer = null;
-    }, 50);
-  }
   instance.isResume = true; // subsequent spawns (e.g. Restart Session) should resume
 }
 
@@ -336,6 +327,15 @@ export function handlePtyData(sessionId: string, data: string): void {
   const instance = instances.get(sessionId);
   if (instance) {
     instance.terminal.write(data);
+    if (instance.pendingPrompt && getProviderCapabilities(instance.providerId)?.pendingPromptTrigger === 'first-output') {
+      const prompt = instance.pendingPrompt;
+      instance.pendingPrompt = null;
+      clearPendingPromptTimer(instance);
+      instance.pendingPromptTimer = setTimeout(() => {
+        window.vibeyard.pty.write(sessionId, `${prompt}\r`);
+        instance.pendingPromptTimer = null;
+      }, 10);
+    }
   }
 }
 
