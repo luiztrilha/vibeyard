@@ -17,6 +17,10 @@ interface ViewportPreset {
   height: number | null;
 }
 
+// Keep browser tabs on an in-memory Electron session so Chromium does not try
+// to create/migrate a disk cache on Windows.
+const BROWSER_TAB_PARTITION = 'vibeyard-browser-tab';
+
 const VIEWPORT_PRESETS: ViewportPreset[] = [
   { label: 'Responsive', width: null, height: null },
   { label: 'iPhone SE',  width: 375,  height: 667  },
@@ -274,6 +278,7 @@ export function createBrowserTabPane(sessionId: string, url?: string): void {
   const webview = document.createElement('webview') as unknown as WebviewElement;
   webview.className = 'browser-webview';
   webview.setAttribute('allowpopups', '');
+  webview.setAttribute('partition', BROWSER_TAB_PARTITION);
   viewportContainer.appendChild(webview);
   el.appendChild(viewportContainer);
 
@@ -412,9 +417,9 @@ export function destroyBrowserTabPane(sessionId: string): void {
   if (instance.inspectMode) {
     instance.webview.send('exit-inspect-mode');
   }
-  // Ensure the webview guest process shuts down
+  // Removing the webview is enough here. Forcing about:blank during teardown
+  // triggers noisy guest-view errors in Electron on Windows.
   instance.webview.stop();
-  instance.webview.src = 'about:blank';
   instance.element.remove();
   instances.delete(sessionId);
 }
