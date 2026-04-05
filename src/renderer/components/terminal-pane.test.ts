@@ -194,7 +194,8 @@ describe('terminal pending prompt injection', () => {
     if (process.platform === 'win32') {
       expect(mockPtyCreate).toHaveBeenCalledWith('codex-1', '/project', null, false, '', 'codex', undefined);
       const { handlePtyData } = await import('./terminal-pane.js');
-      handlePtyData('codex-1', 'OpenAI Codex ready');
+      handlePtyData('codex-1', 'OpenAI Codex');
+      handlePtyData('codex-1', 'Run /review on my current changes');
       await vi.advanceTimersByTimeAsync(10);
       expect(mockPtyWrite).toHaveBeenCalledWith('codex-1', 'fix the bug\r');
     } else {
@@ -213,7 +214,7 @@ describe('terminal pending prompt injection', () => {
     expect(mockPtyCreate).toHaveBeenCalledWith('claude-2', '/project', null, false, '', 'claude', undefined);
   });
 
-  it('injects pending prompt only once on first PTY output', async () => {
+  it('injects pending prompt only once when Codex prompt is ready', async () => {
     const { createTerminalPane, setPendingPrompt, handlePtyData, spawnTerminal } = await import('./terminal-pane.js');
 
     createTerminalPane('codex-2', '/project', null, false, '', 'codex');
@@ -222,6 +223,9 @@ describe('terminal pending prompt injection', () => {
     handlePtyData('codex-2', 'some output');
     await vi.runAllTimersAsync();
     if (process.platform === 'win32') {
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+      handlePtyData('codex-2', 'Run /review on my current changes');
+      await vi.runAllTimersAsync();
       expect(mockPtyWrite).toHaveBeenCalledTimes(1);
       expect(mockPtyWrite).toHaveBeenCalledWith('codex-2', 'some prompt\r');
       mockPtyWrite.mockClear();

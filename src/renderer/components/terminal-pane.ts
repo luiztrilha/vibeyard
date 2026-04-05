@@ -28,6 +28,7 @@ interface TerminalInstance {
   exited: boolean;
   pendingPrompt: string | null;
   pendingPromptTimer: ReturnType<typeof setTimeout> | null;
+  outputBuffer: string;
 }
 
 const instances = new Map<string, TerminalInstance>();
@@ -143,6 +144,7 @@ export function createTerminalPane(
     exited: false,
     pendingPrompt: null,
     pendingPromptTimer: null,
+    outputBuffer: '',
   };
 
   instances.set(sessionId, instance);
@@ -197,6 +199,29 @@ function clearPendingPromptTimer(instance: TerminalInstance): void {
     clearTimeout(instance.pendingPromptTimer);
     instance.pendingPromptTimer = null;
   }
+}
+
+function isPendingPromptReady(instance: TerminalInstance): boolean {
+  const trigger = getProviderCapabilities(instance.providerId)?.pendingPromptTrigger;
+  if (trigger !== 'first-output') return false;
+
+  const buffer = instance.outputBuffer;
+  if (instance.providerId === 'codex') {
+    return /Run \/review on my current changes|100% left|\/model to change|OpenAI Codex/i.test(buffer);
+  }
+
+  return buffer.trim().length > 0;
+}
+
+function flushPendingPrompt(instance: TerminalInstance): void {
+  if (!instance.pendingPrompt) return;
+  const prompt = instance.pendingPrompt;
+  instance.pendingPrompt = null;
+  clearPendingPromptTimer(instance);
+  instance.pendingPromptTimer = setTimeout(() => {
+    window.vibeyard.pty.write(instance.sessionId, `${prompt}\r`);
+    instance.pendingPromptTimer = null;
+  }, 10);
 }
 
 
@@ -326,15 +351,10 @@ export function setFocused(sessionId: string): void {
 export function handlePtyData(sessionId: string, data: string): void {
   const instance = instances.get(sessionId);
   if (instance) {
+    instance.outputBuffer = (instance.outputBuffer + data).slice(-4000);
     instance.terminal.write(data);
-    if (instance.pendingPrompt && getProviderCapabilities(instance.providerId)?.pendingPromptTrigger === 'first-output') {
-      const prompt = instance.pendingPrompt;
-      instance.pendingPrompt = null;
-      clearPendingPromptTimer(instance);
-      instance.pendingPromptTimer = setTimeout(() => {
-        window.vibeyard.pty.write(sessionId, `${prompt}\r`);
-        instance.pendingPromptTimer = null;
-      }, 10);
+    if (instance.pendingPrompt && isPendingPromptReady(instance)) {
+      flushPendingPrompt(instance);
     }
   }
 }
