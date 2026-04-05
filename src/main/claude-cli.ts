@@ -180,7 +180,8 @@ function isIdeHook(h: HookHandler): boolean {
 }
 
 function buildNodeEvalCommand(code: string): string {
-  return `node -e ${JSON.stringify(code)} ${HOOK_MARKER}`;
+  const encoded = Buffer.from(code, 'utf8').toString('base64');
+  return `node -e "eval(Buffer.from('${encoded}','base64').toString('utf8'))" ${HOOK_MARKER}`;
 }
 
 function buildStatusCommand(event: string, status: string): string {

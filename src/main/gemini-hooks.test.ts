@@ -20,6 +20,11 @@ const mockWriteFileSync = vi.mocked(fs.writeFileSync);
 
 const SETTINGS_PATH = '/mock/home/.gemini/settings.json';
 
+function decodeNodeCommand(command: string): string {
+  const match = command.match(/Buffer\.from\('([^']+)','base64'\)/);
+  return match ? Buffer.from(match[1], 'base64').toString('utf8') : command;
+}
+
 function mockFiles(files: Record<string, string>): void {
   mockReadFileSync.mockImplementation((p: any) => {
     const content = files[String(p)];
@@ -75,7 +80,7 @@ describe('installGeminiHooks', () => {
     for (const [, matchers] of Object.entries(hooks) as [string, any[]][]) {
       for (const matcher of matchers) {
         for (const h of matcher.hooks) {
-          expect(h.command).toContain('VIBEYARD_SESSION_ID');
+          expect(decodeNodeCommand(h.command)).toContain('VIBEYARD_SESSION_ID');
         }
       }
     }
@@ -147,14 +152,14 @@ describe('installGeminiHooks', () => {
     const hooks = JSON.parse(String(call![1])).hooks;
 
     const getStatusCmd = (event: string) =>
-      hooks[event].find((m: any) => m.hooks.some((h: any) => h.command.includes('.status')))
-        ?.hooks.find((h: any) => h.command.includes('.status'))?.command;
+      hooks[event].find((m: any) => m.hooks.some((h: any) => decodeNodeCommand(h.command).includes('.status')))
+        ?.hooks.find((h: any) => decodeNodeCommand(h.command).includes('.status'))?.command;
 
-    expect(getStatusCmd('SessionStart')).toContain('SessionStart:waiting');
-    expect(getStatusCmd('BeforeAgent')).toContain('BeforeAgent:working');
-    expect(getStatusCmd('AfterTool')).toContain('AfterTool:working');
-    expect(getStatusCmd('AfterAgent')).toContain('AfterAgent:completed');
-    expect(getStatusCmd('SessionEnd')).toContain('SessionEnd:completed');
+    expect(decodeNodeCommand(getStatusCmd('SessionStart'))).toContain('SessionStart:waiting');
+    expect(decodeNodeCommand(getStatusCmd('BeforeAgent'))).toContain('BeforeAgent:working');
+    expect(decodeNodeCommand(getStatusCmd('AfterTool'))).toContain('AfterTool:working');
+    expect(decodeNodeCommand(getStatusCmd('AfterAgent'))).toContain('AfterAgent:completed');
+    expect(decodeNodeCommand(getStatusCmd('SessionEnd'))).toContain('SessionEnd:completed');
   });
 
   it('includes session ID capture on SessionStart and BeforeAgent only', () => {

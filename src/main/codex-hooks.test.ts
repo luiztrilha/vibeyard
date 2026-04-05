@@ -22,6 +22,11 @@ const mockMkdirSync = vi.mocked(fs.mkdirSync);
 const HOOKS_JSON = '/mock/home/.codex/hooks.json';
 const CONFIG_TOML = '/mock/home/.codex/config.toml';
 
+function decodeNodeCommand(command: string): string {
+  const match = command.match(/Buffer\.from\('([^']+)','base64'\)/);
+  return match ? Buffer.from(match[1], 'base64').toString('utf8') : command;
+}
+
 function mockFiles(files: Record<string, string>): void {
   mockReadFileSync.mockImplementation((p: any) => {
     const content = files[String(p)];
@@ -126,13 +131,13 @@ describe('installCodexHooks', () => {
 
     // Check status commands contain correct event:status
     const getStatusCmd = (event: string) =>
-      hooks[event].find((m: any) => m.hooks.some((h: any) => h.command.includes('.status')))
-        ?.hooks.find((h: any) => h.command.includes('.status'))?.command;
+      hooks[event].find((m: any) => m.hooks.some((h: any) => decodeNodeCommand(h.command).includes('.status')))
+        ?.hooks.find((h: any) => decodeNodeCommand(h.command).includes('.status'))?.command;
 
-    expect(getStatusCmd('SessionStart')).toContain('SessionStart:waiting');
-    expect(getStatusCmd('UserPromptSubmit')).toContain('UserPromptSubmit:working');
-    expect(getStatusCmd('PostToolUse')).toContain('PostToolUse:working');
-    expect(getStatusCmd('Stop')).toContain('Stop:completed');
+    expect(decodeNodeCommand(getStatusCmd('SessionStart'))).toContain('SessionStart:waiting');
+    expect(decodeNodeCommand(getStatusCmd('UserPromptSubmit'))).toContain('UserPromptSubmit:working');
+    expect(decodeNodeCommand(getStatusCmd('PostToolUse'))).toContain('PostToolUse:working');
+    expect(decodeNodeCommand(getStatusCmd('Stop'))).toContain('Stop:completed');
   });
 
   it('includes session ID capture on SessionStart and UserPromptSubmit only', () => {
@@ -143,7 +148,7 @@ describe('installCodexHooks', () => {
 
     const hasSessionIdCapture = (event: string) =>
       hooks[event]?.some((m: any) =>
-        m.hooks.some((h: any) => h.command.includes('.sessionid'))
+        m.hooks.some((h: any) => decodeNodeCommand(h.command).includes('.sessionid'))
       );
 
     expect(hasSessionIdCapture('SessionStart')).toBe(true);
@@ -176,7 +181,7 @@ describe('installCodexHooks', () => {
     for (const [, matchers] of Object.entries(hooks) as [string, any[]][]) {
       for (const matcher of matchers) {
         for (const h of matcher.hooks) {
-          expect(h.command).toContain('VIBEYARD_SESSION_ID');
+          expect(decodeNodeCommand(h.command)).toContain('VIBEYARD_SESSION_ID');
         }
       }
     }

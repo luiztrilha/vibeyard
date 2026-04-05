@@ -21,6 +21,11 @@ const mockReaddirSync = vi.mocked(fs.readdirSync);
 const mockWriteFileSync = vi.mocked(fs.writeFileSync);
 const mockMkdirSync = vi.mocked(fs.mkdirSync);
 
+function decodeNodeCommand(command: string): string {
+  const match = command.match(/Buffer\.from\('([^']+)','base64'\)/);
+  return match ? Buffer.from(match[1], 'base64').toString('utf8') : command;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   // Default: all reads/dirs fail (empty state)
@@ -451,33 +456,33 @@ describe('installHooks', () => {
     for (const event of coreEvents) {
       const matchers = written.hooks[event];
       const allHooks = matchers.flatMap((m: { hooks: Array<{ command: string }> }) => m.hooks);
-      expect(allHooks.some((h: { command: string }) => h.command.includes('.status'))).toBe(true);
-      expect(allHooks.some((h: { command: string }) => h.command.includes('.events'))).toBe(true);
+      expect(allHooks.some((h: { command: string }) => decodeNodeCommand(h.command).includes('.status'))).toBe(true);
+      expect(allHooks.some((h: { command: string }) => decodeNodeCommand(h.command).includes('.events'))).toBe(true);
     }
 
     // PostToolUseFailure should include dedicated tool failure capture
     const failureHooks = written.hooks.PostToolUseFailure
       .flatMap((m: { hooks: Array<{ command: string }> }) => m.hooks);
     expect(failureHooks.some((h: { command: string }) =>
-      h.command.includes('.toolfailure') && h.command.includes('const error=d.error||')
+      decodeNodeCommand(h.command).includes('.toolfailure') && decodeNodeCommand(h.command).includes('const error=d.error||')
     )).toBe(true);
 
     // PostToolUse event cmd should write .toolfailure for any non-empty result (no is_error dependency)
     const toolUseHooks = written.hooks.PostToolUse
       .flatMap((m: { hooks: Array<{ command: string }> }) => m.hooks);
     expect(toolUseHooks.some((h: { command: string }) =>
-      h.command.includes('.toolfailure') &&
-      !h.command.includes('is_error') &&
-      h.command.includes('tool_result') &&
-      h.command.includes('tool_response')
+      decodeNodeCommand(h.command).includes('.toolfailure') &&
+      !decodeNodeCommand(h.command).includes('is_error') &&
+      decodeNodeCommand(h.command).includes('tool_result') &&
+      decodeNodeCommand(h.command).includes('tool_response')
     )).toBe(true);
 
     // Inspector-only hooks should have only event logger (no status writer)
     for (const event of inspectorEvents) {
       const matchers = written.hooks[event];
       const allHooks = matchers.flatMap((m: { hooks: Array<{ command: string }> }) => m.hooks);
-      expect(allHooks.some((h: { command: string }) => h.command.includes('.status'))).toBe(false);
-      expect(allHooks.some((h: { command: string }) => h.command.includes('.events'))).toBe(true);
+      expect(allHooks.some((h: { command: string }) => decodeNodeCommand(h.command).includes('.status'))).toBe(false);
+      expect(allHooks.some((h: { command: string }) => decodeNodeCommand(h.command).includes('.events'))).toBe(true);
     }
   });
 });
