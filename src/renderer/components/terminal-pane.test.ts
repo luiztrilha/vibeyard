@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const providerCaps = new Map([
   ['claude', { costTracking: true, contextWindow: true, pendingPromptTrigger: 'startup-arg', shiftEnterNewline: true }],
   ['gemini', { costTracking: false, contextWindow: false, pendingPromptTrigger: 'startup-arg', shiftEnterNewline: false }],
-  ['codex', { costTracking: false, contextWindow: false, pendingPromptTrigger: 'startup-arg', shiftEnterNewline: false }],
+  ['codex', { costTracking: false, contextWindow: false, pendingPromptTrigger: process.platform === 'win32' ? 'session-start' : 'startup-arg', shiftEnterNewline: false }],
 ]);
 
 const mockPtyWrite = vi.fn();
@@ -191,9 +191,14 @@ describe('terminal pending prompt injection', () => {
     createTerminalPane('codex-1', '/project', null, false, '', 'codex');
     setPendingPrompt('codex-1', 'fix the bug');
     await spawnTerminal('codex-1');
-
-    expect(mockPtyCreate).toHaveBeenCalledWith('codex-1', '/project', null, false, '', 'codex', 'fix the bug');
-    expect(mockPtyWrite).not.toHaveBeenCalled();
+    if (process.platform === 'win32') {
+      expect(mockPtyCreate).toHaveBeenCalledWith('codex-1', '/project', null, false, '', 'codex', undefined);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(mockPtyWrite).toHaveBeenCalledWith('codex-1', 'fix the bug\r');
+    } else {
+      expect(mockPtyCreate).toHaveBeenCalledWith('codex-1', '/project', null, false, '', 'codex', 'fix the bug');
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+    }
   });
 
   it('does not pass initialPrompt when no pending prompt is set', async () => {
@@ -212,6 +217,8 @@ describe('terminal pending prompt injection', () => {
     createTerminalPane('codex-2', '/project', null, false, '', 'codex');
     setPendingPrompt('codex-2', 'some prompt');
     await spawnTerminal('codex-2');
+    await vi.runAllTimersAsync();
+    mockPtyWrite.mockClear();
 
     handlePtyData('codex-2', 'some output');
     await vi.runAllTimersAsync();

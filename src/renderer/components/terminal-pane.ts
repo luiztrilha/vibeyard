@@ -215,12 +215,22 @@ export async function spawnTerminal(sessionId: string): Promise<void> {
     markFreshSession(sessionId);
   }
   initSession(sessionId);
+  const pendingPromptTrigger = getProviderCapabilities(instance.providerId)?.pendingPromptTrigger;
   let initialPrompt: string | undefined;
-  if (instance.pendingPrompt && getProviderCapabilities(instance.providerId)?.pendingPromptTrigger === 'startup-arg') {
+  if (instance.pendingPrompt && pendingPromptTrigger === 'startup-arg') {
     initialPrompt = instance.pendingPrompt;
     instance.pendingPrompt = null;
   }
   await window.vibeyard.pty.create(sessionId, instance.projectPath, instance.cliSessionId, instance.isResume, instance.args, instance.providerId, initialPrompt);
+  if (instance.pendingPrompt && pendingPromptTrigger === 'session-start') {
+    const prompt = instance.pendingPrompt;
+    instance.pendingPrompt = null;
+    clearPendingPromptTimer(instance);
+    instance.pendingPromptTimer = setTimeout(() => {
+      window.vibeyard.pty.write(sessionId, `${prompt}\r`);
+      instance.pendingPromptTimer = null;
+    }, 50);
+  }
   instance.isResume = true; // subsequent spawns (e.g. Restart Session) should resume
 }
 
